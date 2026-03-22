@@ -1,0 +1,629 @@
+{
+  "name": "vscode-gitless",
+  "displayName": "GitLess",
+  "description": "Git in VSCode without the bloat.",
+  "version": "0.1.0",
+  "publisher": "br3ndonland",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/br3ndonland/vscode-gitless"
+  },
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "SCM Providers"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "packageManager": "pnpm@10.7.0",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitless.copyRemoteRepoUrl",
+        "title": "GitLess: Copy link to repository",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.copyRemoteFileUrl",
+        "title": "GitLess: Copy remote file URL",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.copyRemoteFileUrlFrom",
+        "title": "GitLess: Copy remote file URL from",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.copyRemoteCommitUrl",
+        "title": "GitLess: Copy remote commit URL",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.copyRemoteCommitUrlFrom",
+        "title": "GitLess: Copy remote commit URL from",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.copySha",
+        "title": "GitLess: Copy SHA",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "gitless.copyShortSha",
+        "title": "GitLess: Copy short SHA",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "gitless.copyMessage",
+        "title": "GitLess: Copy message",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.openFileAtRevision",
+        "title": "GitLess: Open file at revision",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "gitless.openFile",
+        "title": "GitLess: Open file",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "gitless.openChangesWithWorking",
+        "title": "GitLess: Open changes with working file",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "gitless.openFileOnRemote",
+        "title": "GitLess: Open file on remote",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "gitless.openCommitOnRemote",
+        "title": "GitLess: Open commit on remote",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "gitless.compareWithHead",
+        "title": "GitLess: Compare with HEAD",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "gitless.compareFromHead",
+        "title": "GitLess: Compare from HEAD",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "gitless.compareWorkingWith",
+        "title": "GitLess: Compare working tree with...",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "gitless.checkoutTag",
+        "title": "GitLess: Checkout tag",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gitless.copyTag",
+        "title": "GitLess: Copy tag name",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.copyTagMessage",
+        "title": "GitLess: Copy tag message",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.openAllChanges",
+        "title": "GitLess: Open all changes",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "gitless.openAllChangesWithWorking",
+        "title": "GitLess: Open all changes with working tree",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "gitless.refreshView",
+        "title": "GitLess: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "gitless.copyRemoteFileUrlAtRevision",
+        "title": "GitLess: Copy remote file URL at revision",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.copyRemoteCommitFileUrl",
+        "title": "GitLess: Copy link to commit",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.copyRemoteCommitFileUrlAtRevision",
+        "title": "GitLess: Copy link to commit at revision",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "gitless.views.grouped.commits",
+        "title": "Show Commits",
+        "icon": "$(git-commit)"
+      },
+      {
+        "command": "gitless.views.grouped.branches",
+        "title": "Show Branches",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "gitless.views.grouped.remotes",
+        "title": "Show Remotes",
+        "icon": "$(cloud)"
+      },
+      {
+        "command": "gitless.views.grouped.stashes",
+        "title": "Show Stashes",
+        "icon": "$(archive)"
+      },
+      {
+        "command": "gitless.views.grouped.tags",
+        "title": "Show Tags",
+        "icon": "$(tag)"
+      },
+      {
+        "command": "gitless.views.grouped.worktrees",
+        "title": "Show Worktrees",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "gitless.views.grouped.commits.active",
+        "title": "Commits (active)",
+        "icon": "$(circle-filled)"
+      },
+      {
+        "command": "gitless.views.grouped.branches.active",
+        "title": "Branches (active)",
+        "icon": "$(circle-filled)"
+      },
+      {
+        "command": "gitless.views.grouped.remotes.active",
+        "title": "Remotes (active)",
+        "icon": "$(circle-filled)"
+      },
+      {
+        "command": "gitless.views.grouped.stashes.active",
+        "title": "Stashes (active)",
+        "icon": "$(circle-filled)"
+      },
+      {
+        "command": "gitless.views.grouped.tags.active",
+        "title": "Tags (active)",
+        "icon": "$(circle-filled)"
+      },
+      {
+        "command": "gitless.views.grouped.worktrees.active",
+        "title": "Worktrees (active)",
+        "icon": "$(circle-filled)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gitlessInspect",
+          "title": "GitLess Inspect",
+          "icon": "resources/icons/gitless-inspect.svg"
+        }
+      ]
+    },
+    "views": {
+      "scm": [
+        {
+          "id": "gitless.views.scm.grouped",
+          "name": "GitLess"
+        }
+      ],
+      "gitlessInspect": [
+        {
+          "id": "gitless.views.fileHistory",
+          "name": "File History"
+        },
+        {
+          "id": "gitless.views.lineHistory",
+          "name": "Line History"
+        },
+        {
+          "id": "gitless.views.searchAndCompare",
+          "name": "Search and Compare"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "gitless.submenu.share",
+        "label": "Share"
+      },
+      {
+        "id": "gitless.submenu.copy",
+        "label": "Copy"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "gitless.views.grouped.commits",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != commits",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gitless.views.grouped.commits.active",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == commits",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gitless.views.grouped.branches",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != branches",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gitless.views.grouped.branches.active",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == branches",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gitless.views.grouped.remotes",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != remotes",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gitless.views.grouped.remotes.active",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == remotes",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gitless.views.grouped.stashes",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != stashes",
+          "group": "navigation@4"
+        },
+        {
+          "command": "gitless.views.grouped.stashes.active",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == stashes",
+          "group": "navigation@4"
+        },
+        {
+          "command": "gitless.views.grouped.tags",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != tags",
+          "group": "navigation@5"
+        },
+        {
+          "command": "gitless.views.grouped.tags.active",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == tags",
+          "group": "navigation@5"
+        },
+        {
+          "command": "gitless.views.grouped.worktrees",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != worktrees",
+          "group": "navigation@6"
+        },
+        {
+          "command": "gitless.views.grouped.worktrees.active",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == worktrees",
+          "group": "navigation@6"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "gitless.openAllChanges",
+          "when": "viewItem =~ /gitless:commit\\b/",
+          "group": "inline@1",
+          "alt": "gitless.openAllChangesWithWorking"
+        },
+        {
+          "command": "gitless.compareWithHead",
+          "when": "viewItem =~ /gitless:commit\\b/",
+          "group": "inline@2",
+          "alt": "gitless.compareWorkingWith"
+        },
+        {
+          "command": "gitless.copySha",
+          "when": "viewItem =~ /gitless:commit\\b/",
+          "group": "inline@3",
+          "alt": "gitless.copyMessage"
+        },
+        {
+          "command": "gitless.openCommitOnRemote",
+          "when": "viewItem =~ /gitless:commit\\b/",
+          "group": "inline@4",
+          "alt": "gitless.copyRemoteCommitUrl"
+        },
+        {
+          "command": "gitless.copySha",
+          "when": "viewItem =~ /gitless:commit\\b/",
+          "group": "1_copy@1"
+        },
+        {
+          "command": "gitless.copyMessage",
+          "when": "viewItem =~ /gitless:commit\\b/",
+          "group": "1_copy@2"
+        },
+        {
+          "submenu": "gitless.submenu.share",
+          "when": "viewItem =~ /gitless:(commit|file|branch)\\b/",
+          "group": "2_share@1"
+        },
+        {
+          "command": "gitless.openFileAtRevision",
+          "when": "viewItem =~ /gitless:file\\b/",
+          "group": "inline@1",
+          "alt": "gitless.openFile"
+        },
+        {
+          "command": "gitless.openChangesWithWorking",
+          "when": "viewItem =~ /gitless:file\\b/",
+          "group": "inline@2"
+        },
+        {
+          "command": "gitless.openFileOnRemote",
+          "when": "viewItem =~ /gitless:file\\b/",
+          "group": "inline@3",
+          "alt": "gitless.copyRemoteFileUrl"
+        },
+        {
+          "command": "gitless.checkoutTag",
+          "when": "viewItem =~ /gitless:tag\\b/",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitless.compareWithHead",
+          "when": "viewItem =~ /gitless:tag\\b/",
+          "group": "inline@2",
+          "alt": "gitless.compareWorkingWith"
+        },
+        {
+          "command": "gitless.copyTag",
+          "when": "viewItem =~ /gitless:tag\\b/",
+          "group": "1_copy@1"
+        },
+        {
+          "command": "gitless.copyTagMessage",
+          "when": "viewItem =~ /gitless:tag\\b/",
+          "group": "1_copy@2"
+        },
+        {
+          "command": "gitless.compareWithHead",
+          "when": "viewItem =~ /gitless:branch\\b/",
+          "group": "inline@1",
+          "alt": "gitless.compareWorkingWith"
+        },
+        {
+          "command": "gitless.copySha",
+          "when": "viewItem =~ /gitless:stash\\b/",
+          "group": "1_copy@1"
+        },
+        {
+          "command": "gitless.copyMessage",
+          "when": "viewItem =~ /gitless:stash\\b/",
+          "group": "1_copy@2"
+        },
+        {
+          "command": "gitless.copyRemoteRepoUrl",
+          "when": "viewItem =~ /gitless:remote\\b/",
+          "group": "1_copy@1"
+        },
+        {
+          "command": "gitless.openFileOnRemote",
+          "when": "viewItem =~ /gitless:remote\\b/",
+          "group": "2_open@1"
+        }
+      ],
+      "gitless.submenu.share": [
+        {
+          "command": "gitless.copyRemoteCommitUrl",
+          "when": "viewItem =~ /gitless:commit\\b/"
+        },
+        {
+          "command": "gitless.copyRemoteCommitFileUrl",
+          "when": "viewItem =~ /gitless:file\\b/"
+        },
+        {
+          "command": "gitless.copyRemoteCommitFileUrlAtRevision",
+          "when": "viewItem =~ /gitless:file\\b/"
+        },
+        {
+          "command": "gitless.copyRemoteFileUrl",
+          "when": "viewItem =~ /gitless:file\\b/"
+        },
+        {
+          "command": "gitless.copyRemoteFileUrlAtRevision",
+          "when": "viewItem =~ /gitless:file\\b/"
+        },
+        {
+          "command": "gitless.copyRemoteRepoUrl",
+          "when": "viewItem =~ /gitless:branch\\b/"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "gitless.openFileAtRevision",
+          "when": "false"
+        },
+        {
+          "command": "gitless.openFile",
+          "when": "false"
+        },
+        {
+          "command": "gitless.openChangesWithWorking",
+          "when": "false"
+        },
+        {
+          "command": "gitless.openAllChanges",
+          "when": "false"
+        },
+        {
+          "command": "gitless.openAllChangesWithWorking",
+          "when": "false"
+        },
+        {
+          "command": "gitless.compareWithHead",
+          "when": "false"
+        },
+        {
+          "command": "gitless.compareFromHead",
+          "when": "false"
+        },
+        {
+          "command": "gitless.compareWorkingWith",
+          "when": "false"
+        },
+        {
+          "command": "gitless.checkoutTag",
+          "when": "false"
+        },
+        {
+          "command": "gitless.copyTag",
+          "when": "false"
+        },
+        {
+          "command": "gitless.copyTagMessage",
+          "when": "false"
+        },
+        {
+          "command": "gitless.refreshView",
+          "when": "false"
+        },
+        {
+          "command": "gitless.copyRemoteFileUrlAtRevision",
+          "when": "false"
+        },
+        {
+          "command": "gitless.copyRemoteCommitFileUrl",
+          "when": "false"
+        },
+        {
+          "command": "gitless.copyRemoteCommitFileUrlAtRevision",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.commits",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.branches",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.remotes",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.stashes",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.tags",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.worktrees",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.commits.active",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.branches.active",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.remotes.active",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.stashes.active",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.tags.active",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.worktrees.active",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "GitLess",
+      "properties": {
+        "gitless.shortShaLength": {
+          "type": "number",
+          "default": 7,
+          "minimum": 5,
+          "maximum": 40,
+          "markdownDescription": "Specifies the length of short commit SHAs. Minimum 5, maximum 40 (full SHA)."
+        },
+        "gitless.views.commits.showBranchComparison": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show branch comparison in the Commits view."
+        },
+        "gitless.defaultDateFormat": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "markdownDescription": "Specifies the date format for dates displayed in GitLess views. See [dayjs format tokens](https://day.js.org/docs/en/display/format) for options."
+        },
+        "gitless.defaultDateStyle": {
+          "type": "string",
+          "default": "relative",
+          "enum": [
+            "relative",
+            "absolute"
+          ],
+          "description": "Specifies the style of dates displayed in GitLess views."
+        },
+        "gitless.views.branches.layout": {
+          "type": "string",
+          "default": "tree",
+          "enum": [
+            "list",
+            "tree"
+          ],
+          "description": "Specifies the layout of the Branches view."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run build",
+    "build": "node scripts/build.mjs",
+    "build:dev": "node scripts/build.mjs --dev",
+    "watch": "node scripts/build.mjs --watch",
+    "test": "vscode-test",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "lint": "prettier --check .",
+    "format": "prettier --write .",
+    "package": "vsce package --no-dependencies",
+    "publish:vsce": "vsce publish --no-dependencies",
+    "publish:ovsx": "ovsx publish"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.15.0",
+    "@types/vscode": "^1.100.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.5.2",
+    "@vscode/vsce": "^3.3.2",
+    "esbuild": "^0.25.0",
+    "esbuild-register": "^3.6.0",
+    "mocha": "^11.1.0",
+    "ovsx": "^0.10.1",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.0"
+  }
+}
