@@ -649,6 +649,9 @@
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@playwright/test": "^1.50.0",
+    "@semantic-release/changelog": "~6.0",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.15.0",
     "@types/vscode": "^1.100.0",
@@ -660,6 +663,8 @@
     "mocha": "^11.1.0",
     "ovsx": "^0.10.1",
     "prettier": "^3.5.3",
+    "semantic-release": "^25.0.3",
+    "semantic-release-vsce": "~6.1",
     "typescript": "^5.8.0"
   }
 }
