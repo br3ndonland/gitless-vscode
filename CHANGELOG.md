@@ -1,21 +1,11 @@
 # Changelog
 
-All notable changes to the GitLess extension will be documented in this file.
+## 0.1.0 (2026-03-26)
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+### Bug Fixes
 
-## [Unreleased]
+- add "GitLess: Copy short SHA" to menu ([e1e9678](https://github.com/br3ndonland/gitless-vscode/commit/e1e967861727cec7ec2bd43db7066bb884ccb1f5))
 
-### Added
+### Features
 
-- Command palette commands for copying remote URLs (repo, file, commit)
-- Command palette commands for copying SHA and short SHA
-- Source Control panel views: Commits, Branches, Remotes, Stashes, Tags, Worktrees
-- GitLess Inspect panel: File History, Line History, Search & Compare
-- Commit view hover actions: open changes, compare, copy SHA, open on remote
-- File tree hover actions: open at revision, open changes, open on remote
-- Tag view hover actions: checkout, compare
-- Context menus with Share submenus for copying remote URLs
-- Configurable short SHA length
-- Support for GitHub, GitLab, Bitbucket, Azure DevOps, and Gitea remote providers
+- implement VSCode extension ([82b946b](https://github.com/br3ndonland/gitless-vscode/commit/82b946b2bc7c2ab3a40126be6db53dfa0917a92e)) - This commit will contribute the initial implementation of a VSCode Git extension. The extension complements the built-in VSCode source control capabilities with a minimal set of additional features including command palette actions, source control views, and an inspect panel.
