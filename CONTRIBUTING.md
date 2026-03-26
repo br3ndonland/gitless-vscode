@@ -139,5 +139,5 @@ Releases are automated via GitHub Actions. To publish a new version:
 
 1. Update the version in `package.json`
 2. Update `CHANGELOG.md` with the changes
-3. Create and push a version tag: `git tag v0.1.0 && git push origin v0.1.0`
+3. Create and push a version tag: `git tag 0.1.0 && git push origin 0.1.0`
 4. The publish workflow will build, package, and publish to both the VS Code Marketplace and Open VSX
