@@ -23,7 +23,7 @@ jobs:
           node-version-file: .node-version
       - run: pnpm install --frozen-lockfile
       - name: Lint commits
-        run: pnpm exec commitlint --from ${{ github.event.pull_request.base.sha || github.event.before }} --to ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm exec commitlint --from ${{ github.event.pull_request.base.sha || github.event.before }} --to ${{ github.event.pull_request.head.sha || github.sha }} --verbose
       - run: pnpm run lint
       - run: pnpm run build
       - run: xvfb-run -a pnpm run test
