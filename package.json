@@ -7,7 +7,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/br3ndonland/vscode-gitless"
+    "url": "https://github.com/br3ndonland/gitless-vscode"
   },
   "engines": {
     "vscode": "^1.100.0"
