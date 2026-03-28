@@ -144,10 +144,7 @@ pnpm run package     # Create .vsix file
 
 ## Publishing
 
-The extension is published via GitHub Actions workflows:
-
-- **CI** (`.github/workflows/ci.yml`) - Runs on push and PR to `main`. Lints, builds, and runs unit tests.
-- **Publish** (`.github/workflows/publish.yml`) - Triggered by version tags (`v*.*.*`). Publishes to both the [VS Code Marketplace](https://marketplace.visualstudio.com/) and [Open VSX](https://open-vsx.org/) (for VSCodium and other non-Microsoft distributions).
+Publishing is fully automated with [semantic-release](https://github.com/semantic-release/semantic-release). When commits are pushed to `main`, semantic-release analyzes the commit messages to determine the next version, generates a changelog, publishes to both the [VS Code Marketplace](https://marketplace.visualstudio.com/) and [Open VSX](https://open-vsx.org/) (for VSCodium and other non-Microsoft distributions), and creates a GitHub release.
 
 ## License
 

@@ -36,3 +36,63 @@ jobs:
       - run: xvfb-run -a pnpm run test
       - run: npx playwright install --with-deps chromium
       - run: xvfb-run -a pnpm run test:e2e
+
+  release-dry-run:
+    needs: build-and-test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.base_ref }}
+      - name: Simulate squash merge of PR branch
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge --squash origin/${{ github.head_ref }}
+          git commit --message "${{ github.event.pull_request.title }} (#${{ github.event.pull_request.number }})"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          cache: pnpm
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - name: Semantic Release (dry run)
+        run: |
+          unset GITHUB_ACTIONS
+          pnpm exec semantic-release --extends ./release.config.package.mjs --dry-run --no-ci
+        env:
+          VSCE_PRE_RELEASE: true
+
+  release:
+    environment: release
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          # persist credentials breaks @semantic-release/git on protected branches
+          # https://github.com/semantic-release/git/issues/196
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          cache: pnpm
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - name: Semantic Release
+        run: pnpm exec semantic-release --extends ./release.config.publish.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_FGT }}
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          VSCE_PRE_RELEASE: true

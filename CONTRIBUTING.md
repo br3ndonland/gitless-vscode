@@ -135,12 +135,22 @@ The build uses [esbuild](https://esbuild.github.io/) to bundle `src/extension.ts
 
 ## Releases
 
-Releases are automated via GitHub Actions. To publish a new version:
+Releases are fully automated with [semantic-release](https://github.com/semantic-release/semantic-release). When commits land on `main`, semantic-release:
 
-1. Update the version in `package.json`
-2. Update `CHANGELOG.md` with the changes
-3. Create and push a version tag: `git tag 0.1.0 && git push origin 0.1.0`
-4. The publish workflow will build, package, and publish to both the VS Code Marketplace and Open VSX
+1. Analyzes commit messages to determine the next version bump
+2. Generates release notes and updates `CHANGELOG.md`
+3. Bumps the version in `package.json`
+4. Publishes the `.vsix` to both the VS Code Marketplace and Open VSX
+5. Creates a GitHub release with the `.vsix` attached
+6. Commits the updated `CHANGELOG.md` and `package.json` back to `main`
+
+Version bumps follow [Semantic Versioning](https://semver.org/):
+
+- `fix:` commits → patch release (0.1.0 → 0.1.1)
+- `feat:` commits → minor release (0.1.0 → 0.2.0)
+- `BREAKING CHANGE:` in commit body/footer → major release (0.1.0 → 1.0.0)
+
+No manual version bumps, tags, or changelog edits are needed.
 
 Note that, even if the VSCode extension is published as a pre-release, the branch and tag name should not include SemVer pre-release specifiers because the Microsoft marketplace does not support them. The [docs](https://code.visualstudio.com/api/working-with-extensions/publishing-extension) explain,
 
