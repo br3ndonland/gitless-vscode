@@ -1,7 +1,6 @@
 # GitLess
 
 [![Open VSX Version](https://img.shields.io/open-vsx/v/br3ndonland/gitless-vscode?style=flat-square&color=%23C160EF)](https://open-vsx.org/extension/br3ndonland/gitless-vscode)
-[![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/br3ndonland.gitless-vscode?style=flat-square&color=blue&label=vscode)](https://marketplace.visualstudio.com/items?itemName=br3ndonland.gitless-vscode)
 
 Git in VSCode with less bloat.
 
