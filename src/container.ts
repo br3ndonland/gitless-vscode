@@ -5,6 +5,7 @@ import {
   FileHistoryView,
   LineHistoryView,
   SearchAndCompareView,
+  GitFileDecorationProvider,
 } from "./views"
 import { registerCommands } from "./commands"
 import { RevisionContentProvider } from "./commands/revisionContentProvider"
@@ -48,6 +49,13 @@ export class Container implements vscode.Disposable {
         RevisionContentProvider.scheme,
         new RevisionContentProvider(this.gitService),
       ),
+    )
+
+    // Register file decoration provider for git-status badges on file nodes
+    const fileDecorationProvider = new GitFileDecorationProvider()
+    this.disposables.push(
+      vscode.window.registerFileDecorationProvider(fileDecorationProvider),
+      fileDecorationProvider,
     )
 
     // Register commands

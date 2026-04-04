@@ -7,9 +7,14 @@ import type {
   GitStash,
   GitWorktree,
   GitFile,
+  GitFileStatus,
 } from "../git/models"
 import { Commands, ContextValues } from "../constants"
 import { shortenSha } from "../config"
+
+/** Custom URI scheme used for file nodes to trigger file-icon-theme resolution
+ * without conflicting with real workspace file decorations. */
+export const FILE_NODE_URI_SCHEME = "gitless-file"
 
 // Base class for all tree view nodes
 export abstract class ViewNode extends vscode.TreeItem {
@@ -60,6 +65,7 @@ export class FileNode extends ViewNode {
   readonly contextValue = ContextValues.File
   readonly sha: string
   readonly filePath: string
+  readonly fileStatus: GitFileStatus
 
   constructor(
     public readonly file: GitFile,
@@ -73,14 +79,24 @@ export class FileNode extends ViewNode {
     )
     this.sha = sha
     this.filePath = file.path
+    this.fileStatus = file.status
     this.description = file.path.includes("/")
       ? file.path.slice(0, file.path.lastIndexOf("/"))
       : ""
     this.tooltip = new vscode.MarkdownString(
       `**${file.path}**\n\nStatus: ${file.status}\n\nCommit: \`${sha}\``,
     )
-    this.iconPath = getFileStatusIcon(file.status)
     this.id = `file:${sha}:${file.path}`
+
+    // Use a custom-scheme URI so the active file icon theme resolves the
+    // icon by filename/extension, without conflicting with real workspace
+    // file decorations.  The GitFileDecorationProvider uses this same
+    // scheme to apply git-status colors and badges.
+    this.resourceUri = vscode.Uri.from({
+      scheme: FILE_NODE_URI_SCHEME,
+      path: `/${file.path}`,
+      query: `status=${file.status}`,
+    })
 
     // Click opens the diff (parent commit vs this commit)
     this.command = {
@@ -88,37 +104,6 @@ export class FileNode extends ViewNode {
       command: Commands.OpenChanges,
       arguments: [{ sha, filePath: file.path, repoPath }],
     }
-  }
-}
-
-function getFileStatusIcon(
-  status: import("../git/models").GitFileStatus,
-): vscode.ThemeIcon {
-  switch (status) {
-    case "added":
-      return new vscode.ThemeIcon(
-        "diff-added",
-        new vscode.ThemeColor("gitDecoration.addedResourceForeground"),
-      )
-    case "modified":
-      return new vscode.ThemeIcon(
-        "diff-modified",
-        new vscode.ThemeColor("gitDecoration.modifiedResourceForeground"),
-      )
-    case "deleted":
-      return new vscode.ThemeIcon(
-        "diff-removed",
-        new vscode.ThemeColor("gitDecoration.deletedResourceForeground"),
-      )
-    case "renamed":
-      return new vscode.ThemeIcon(
-        "diff-renamed",
-        new vscode.ThemeColor("gitDecoration.renamedResourceForeground"),
-      )
-    case "copied":
-      return new vscode.ThemeIcon("diff-added")
-    default:
-      return new vscode.ThemeIcon("file")
   }
 }
 
