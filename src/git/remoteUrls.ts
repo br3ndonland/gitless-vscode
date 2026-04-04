@@ -61,11 +61,11 @@ function getFileUrl(
   baseUrl: string,
   resource: RemoteResource,
 ): string {
-  const { sha, branch, fileName, range } = resource
+  const { sha, branch, tag, fileName, range } = resource
 
   const lineFragment = range ? getLineFragment(provider, range) : ""
 
-  const ref = sha || branch || "HEAD"
+  const ref = sha || branch || tag || "HEAD"
 
   switch (provider.id) {
     case "gitlab":
@@ -75,7 +75,7 @@ function getFileUrl(
     case "azure-devops":
       return `${baseUrl}?path=/${fileName}&version=G${ref.startsWith("refs/") ? ref : `C${ref}`}${lineFragment}`
     case "gitea":
-      return `${baseUrl}/src/${sha ? "commit" : "branch"}/${ref}/${fileName}${lineFragment}`
+      return `${baseUrl}/src/${sha ? "commit" : tag ? "tag" : "branch"}/${ref}/${fileName}${lineFragment}`
     case "github":
     default:
       return `${baseUrl}/blob/${ref}/${fileName}${lineFragment}`

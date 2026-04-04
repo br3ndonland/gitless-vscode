@@ -203,6 +203,91 @@ suite("Remote URLs", () => {
         "https://bitbucket.org/user/my-repo/src/main/src/index.ts#lines-10:20",
       )
     })
+
+    test("GitHub file URL with tag", () => {
+      const url = getRemoteUrl(githubProvider, {
+        type: "file",
+        fileName: "src/index.ts",
+        tag: "v1.0.0",
+      })
+      assert.strictEqual(
+        url,
+        "https://github.com/user/my-repo/blob/v1.0.0/src/index.ts",
+      )
+    })
+
+    test("GitLab file URL with tag", () => {
+      const url = getRemoteUrl(gitlabProvider, {
+        type: "file",
+        fileName: "src/index.ts",
+        tag: "v1.0.0",
+      })
+      assert.strictEqual(
+        url,
+        "https://gitlab.com/user/my-repo/-/blob/v1.0.0/src/index.ts",
+      )
+    })
+
+    test("Bitbucket file URL with tag", () => {
+      const url = getRemoteUrl(bitbucketProvider, {
+        type: "file",
+        fileName: "src/index.ts",
+        tag: "v1.0.0",
+      })
+      assert.strictEqual(
+        url,
+        "https://bitbucket.org/user/my-repo/src/v1.0.0/src/index.ts",
+      )
+    })
+
+    test("Azure DevOps file URL with tag", () => {
+      const url = getRemoteUrl(azureProvider, {
+        type: "file",
+        fileName: "src/index.ts",
+        tag: "v1.0.0",
+      })
+      assert.strictEqual(
+        url,
+        "https://dev.azure.com/org/_git/my-repo?path=/src/index.ts&version=GTv1.0.0",
+      )
+    })
+
+    test("Gitea file URL with tag", () => {
+      const url = getRemoteUrl(giteaProvider, {
+        type: "file",
+        fileName: "src/index.ts",
+        tag: "v1.0.0",
+      })
+      assert.strictEqual(
+        url,
+        "https://codeberg.org/user/my-repo/src/tag/v1.0.0/src/index.ts",
+      )
+    })
+
+    test("SHA takes precedence over tag", () => {
+      const url = getRemoteUrl(githubProvider, {
+        type: "file",
+        fileName: "src/index.ts",
+        sha: "abc123",
+        tag: "v1.0.0",
+      })
+      assert.strictEqual(
+        url,
+        "https://github.com/user/my-repo/blob/abc123/src/index.ts",
+      )
+    })
+
+    test("Tag takes precedence over HEAD fallback", () => {
+      const url = getRemoteUrl(githubProvider, {
+        type: "file",
+        fileName: "src/index.ts",
+        tag: "v2.0.0",
+      })
+      assert.strictEqual(
+        url,
+        "https://github.com/user/my-repo/blob/v2.0.0/src/index.ts",
+      )
+    })
   })
 
   suite("Branch URLs", () => {

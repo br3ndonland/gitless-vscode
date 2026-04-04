@@ -177,19 +177,25 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
       return
     }
 
-    // Try to resolve ref to SHA for commit-like refs
+    // Check if ref is a tag
+    const tags = await gitService.getTags(repoPath)
+    const isTag = tags.some((t) => t.name === ref)
+
     let sha: string | undefined
-    try {
-      sha = await gitService.getShaForRef(repoPath, ref)
-    } catch {
-      // use ref as branch/tag name
+    if (!isTag) {
+      try {
+        sha = await gitService.getShaForRef(repoPath, ref)
+      } catch {
+        // use ref as branch name
+      }
     }
 
     const url = getRemoteUrl(remote.provider, {
       type: "file",
       fileName: fileInfo.relativePath,
       sha,
-      branch: sha ? undefined : ref,
+      branch: sha ? undefined : isTag ? undefined : ref,
+      tag: isTag ? ref : undefined,
     })
     if (url) await copyToClipboard(url, "file URL")
   })
