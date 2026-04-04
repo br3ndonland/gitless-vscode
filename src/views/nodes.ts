@@ -144,7 +144,7 @@ export class BranchNode extends ViewNode {
     }
 
     const parts: string[] = []
-    if (branch.current) parts.push("$(check)")
+    if (branch.current) parts.push("\u2713")
     if (branch.upstream) {
       parts.push(`→ ${branch.upstream.name}`)
       if (branch.upstream.missing) parts.push("(gone)")
