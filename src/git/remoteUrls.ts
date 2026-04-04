@@ -72,8 +72,10 @@ function getFileUrl(
       return `${baseUrl}/-/blob/${ref}/${fileName}${lineFragment}`
     case "bitbucket":
       return `${baseUrl}/src/${ref}/${fileName}${lineFragment}`
-    case "azure-devops":
-      return `${baseUrl}?path=/${fileName}&version=G${ref.startsWith("refs/") ? ref : `C${ref}`}${lineFragment}`
+    case "azure-devops": {
+      const versionPrefix = tag ? "T" : branch ? "B" : "C"
+      return `${baseUrl}?path=/${fileName}&version=G${versionPrefix}${ref}${lineFragment}`
+    }
     case "gitea":
       return `${baseUrl}/src/${sha ? "commit" : tag ? "tag" : "branch"}/${ref}/${fileName}${lineFragment}`
     case "github":
