@@ -74,6 +74,11 @@
         "icon": "$(link-external)"
       },
       {
+        "command": "gitless.openChanges",
+        "title": "GitLess: Open changes",
+        "icon": "$(diff)"
+      },
+      {
         "command": "gitless.openChangesWithWorking",
         "title": "GitLess: Open changes with working file",
         "icon": "$(link-external)"
@@ -365,9 +370,10 @@
           "alt": "gitless.openFile"
         },
         {
-          "command": "gitless.openChangesWithWorking",
+          "command": "gitless.openChanges",
           "when": "viewItem =~ /gitless:file\\b/",
-          "group": "inline@2"
+          "group": "inline@2",
+          "alt": "gitless.openChangesWithWorking"
         },
         {
           "command": "gitless.openFileOnRemote",
@@ -456,6 +462,10 @@
         },
         {
           "command": "gitless.openFile",
+          "when": "false"
+        },
+        {
+          "command": "gitless.openChanges",
           "when": "false"
         },
         {

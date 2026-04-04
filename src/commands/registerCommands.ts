@@ -4,6 +4,7 @@ import { Commands } from "../constants"
 import { shortenSha } from "../config"
 import { getRemoteUrl } from "../git/remoteUrls"
 import type { GitRemote } from "../git/models"
+import { makeRevisionUri } from "./revisionContentProvider"
 
 interface CommandContext {
   gitService: GitService
@@ -262,9 +263,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
       | undefined
     if (!node?.sha || !node?.filePath || !node?.repoPath) return
 
-    const uri = vscode.Uri.parse(
-      `gitless-revision://${node.repoPath}/${node.filePath}?sha=${node.sha}`,
-    )
+    const uri = makeRevisionUri(node.repoPath, node.filePath, node.sha)
     await vscode.window.showTextDocument(uri, { preview: true })
   })
 
@@ -276,15 +275,31 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
     await vscode.window.showTextDocument(uri, { preview: true })
   })
 
+  register(Commands.OpenChanges, async (...args: unknown[]) => {
+    const node = args[0] as
+      | { sha?: string; filePath?: string; repoPath?: string }
+      | undefined
+    if (!node?.sha || !node?.filePath || !node?.repoPath) return
+
+    const parentSha = `${node.sha}~1`
+    const leftUri = makeRevisionUri(node.repoPath, node.filePath, parentSha)
+    const rightUri = makeRevisionUri(node.repoPath, node.filePath, node.sha)
+    const title = `${node.filePath} (${shortenSha(node.sha)})`
+    await vscode.commands.executeCommand(
+      "vscode.diff",
+      leftUri,
+      rightUri,
+      title,
+    )
+  })
+
   register(Commands.OpenChangesWithWorking, async (...args: unknown[]) => {
     const node = args[0] as
       | { sha?: string; filePath?: string; repoPath?: string }
       | undefined
     if (!node?.sha || !node?.filePath || !node?.repoPath) return
 
-    const revisionUri = vscode.Uri.parse(
-      `gitless-revision://${node.repoPath}/${node.filePath}?sha=${node.sha}`,
-    )
+    const revisionUri = makeRevisionUri(node.repoPath, node.filePath, node.sha)
     const workingUri = vscode.Uri.file(`${node.repoPath}/${node.filePath}`)
     const title = `${node.filePath} (${shortenSha(node.sha)} ↔ Working)`
     await vscode.commands.executeCommand(
@@ -366,12 +381,8 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
     // Open first file diff as preview
     const file = files[0]
-    const leftUri = vscode.Uri.parse(
-      `gitless-revision://${node.repoPath}/${file.path}?sha=${node.sha}`,
-    )
-    const rightUri = vscode.Uri.parse(
-      `gitless-revision://${node.repoPath}/${file.path}?sha=HEAD`,
-    )
+    const leftUri = makeRevisionUri(node.repoPath, file.path, node.sha)
+    const rightUri = makeRevisionUri(node.repoPath, file.path, "HEAD")
     const title = `${file.path} (${shortenSha(node.sha)} ↔ HEAD)`
     await vscode.commands.executeCommand(
       "vscode.diff",
@@ -392,12 +403,8 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
     }
 
     const file = files[0]
-    const leftUri = vscode.Uri.parse(
-      `gitless-revision://${node.repoPath}/${file.path}?sha=HEAD`,
-    )
-    const rightUri = vscode.Uri.parse(
-      `gitless-revision://${node.repoPath}/${file.path}?sha=${node.sha}`,
-    )
+    const leftUri = makeRevisionUri(node.repoPath, file.path, "HEAD")
+    const rightUri = makeRevisionUri(node.repoPath, file.path, node.sha)
     const title = `${file.path} (HEAD ↔ ${shortenSha(node.sha)})`
     await vscode.commands.executeCommand(
       "vscode.diff",
@@ -418,9 +425,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
     }
 
     const file = files[0]
-    const leftUri = vscode.Uri.parse(
-      `gitless-revision://${node.repoPath}/${file.path}?sha=${node.sha}`,
-    )
+    const leftUri = makeRevisionUri(node.repoPath, file.path, node.sha)
     const rightUri = vscode.Uri.file(`${node.repoPath}/${file.path}`)
     const title = `${file.path} (${shortenSha(node.sha)} ↔ Working Tree)`
     await vscode.commands.executeCommand(
@@ -474,12 +479,8 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
     const files = await gitService.getCommitFiles(node.repoPath, node.sha)
     for (const file of files) {
       const parentSha = `${node.sha}~1`
-      const leftUri = vscode.Uri.parse(
-        `gitless-revision://${node.repoPath}/${file.path}?sha=${parentSha}`,
-      )
-      const rightUri = vscode.Uri.parse(
-        `gitless-revision://${node.repoPath}/${file.path}?sha=${node.sha}`,
-      )
+      const leftUri = makeRevisionUri(node.repoPath, file.path, parentSha)
+      const rightUri = makeRevisionUri(node.repoPath, file.path, node.sha)
       const title = `${file.path} (${shortenSha(node.sha)})`
       await vscode.commands.executeCommand(
         "vscode.diff",
@@ -496,9 +497,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
     const files = await gitService.getCommitFiles(node.repoPath, node.sha)
     for (const file of files) {
-      const leftUri = vscode.Uri.parse(
-        `gitless-revision://${node.repoPath}/${file.path}?sha=${node.sha}`,
-      )
+      const leftUri = makeRevisionUri(node.repoPath, file.path, node.sha)
       const rightUri = vscode.Uri.file(`${node.repoPath}/${file.path}`)
       const title = `${file.path} (${shortenSha(node.sha)} ↔ Working)`
       await vscode.commands.executeCommand(

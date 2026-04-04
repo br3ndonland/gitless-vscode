@@ -8,7 +8,7 @@ import type {
   GitWorktree,
   GitFile,
 } from "../git/models"
-import { ContextValues } from "../constants"
+import { Commands, ContextValues } from "../constants"
 import { shortenSha } from "../config"
 
 // Base class for all tree view nodes
@@ -82,10 +82,10 @@ export class FileNode extends ViewNode {
     this.iconPath = getFileStatusIcon(file.status)
     this.id = `file:${sha}:${file.path}`
 
-    // Click opens the diff
+    // Click opens the diff (parent commit vs this commit)
     this.command = {
       title: "Open Changes",
-      command: "gitless.openChangesWithWorking",
+      command: Commands.OpenChanges,
       arguments: [{ sha, filePath: file.path, repoPath }],
     }
   }

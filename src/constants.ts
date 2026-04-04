@@ -36,6 +36,7 @@ export const Commands = {
   CopyMessage: "gitless.copyMessage",
   OpenFileAtRevision: "gitless.openFileAtRevision",
   OpenFile: "gitless.openFile",
+  OpenChanges: "gitless.openChanges",
   OpenChangesWithWorking: "gitless.openChangesWithWorking",
   OpenFileOnRemote: "gitless.openFileOnRemote",
   OpenCommitOnRemote: "gitless.openCommitOnRemote",
