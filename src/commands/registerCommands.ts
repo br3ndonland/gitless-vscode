@@ -50,10 +50,10 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
     return { uri, relativePath }
   }
 
-  // Helper: copy to clipboard and show message
+  // Helper: copy to clipboard and show message (status bar, auto-dismisses)
   async function copyToClipboard(value: string, label: string): Promise<void> {
     await vscode.env.clipboard.writeText(value)
-    vscode.window.showInformationMessage(`Copied ${label} to clipboard`)
+    vscode.window.setStatusBarMessage(`$(check) Copied ${label}`, 3000)
   }
 
   // Helper: show quick pick for choosing a remote
@@ -354,7 +354,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
     const files = await gitService.diff(node.repoPath, node.sha, "HEAD")
     if (files.length === 0) {
-      vscode.window.showInformationMessage("No differences found")
+      vscode.window.setStatusBarMessage("$(check) No differences found", 3000)
       return
     }
 
@@ -381,7 +381,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
     const files = await gitService.diff(node.repoPath, "HEAD", node.sha)
     if (files.length === 0) {
-      vscode.window.showInformationMessage("No differences found")
+      vscode.window.setStatusBarMessage("$(check) No differences found", 3000)
       return
     }
 
@@ -407,7 +407,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
     const files = await gitService.diff(node.repoPath, node.sha)
     if (files.length === 0) {
-      vscode.window.showInformationMessage("No differences found")
+      vscode.window.setStatusBarMessage("$(check) No differences found", 3000)
       return
     }
 
@@ -431,7 +431,10 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
     try {
       await gitService.checkout(node.repoPath, `tags/${node.name}`)
-      vscode.window.showInformationMessage(`Checked out tag '${node.name}'`)
+      vscode.window.setStatusBarMessage(
+        `$(check) Checked out tag '${node.name}'`,
+        3000,
+      )
     } catch (err) {
       vscode.window.showErrorMessage(
         `Failed to checkout tag: ${err instanceof Error ? err.message : String(err)}`,
