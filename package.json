@@ -614,6 +614,7 @@
     "lint": "prettier --check .",
     "lint:commits": "commitlint --from $(git rev-list --max-parents=0 HEAD) --to HEAD",
     "format": "prettier --write .",
+    "format:changelog": "prettier --write CHANGELOG.md",
     "package": "vsce package --no-dependencies --pre-release",
     "publish:vsce": "vsce publish --no-dependencies --pre-release",
     "publish:ovsx": "ovsx publish --no-dependencies --pre-release"
@@ -651,6 +652,7 @@
     "@playwright/test": "^1.58.2",
     "@semantic-release/changelog": "~6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.19.15",

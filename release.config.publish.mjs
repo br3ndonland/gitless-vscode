@@ -11,6 +11,12 @@ export default {
       },
     ],
     [
+      "@semantic-release/exec",
+      {
+        prepareCmd: "pnpm run format:changelog",
+      },
+    ],
+    [
       "semantic-release-vsce",
       {
         packageVsix: true,

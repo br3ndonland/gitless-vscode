@@ -2,10 +2,9 @@
 
 ## [0.1.1](https://github.com/br3ndonland/gitless-vscode/compare/0.1.0...0.1.1) (2026-04-04)
 
-
 ### Bug Fixes
 
-* move notifications to status bar ([112a423](https://github.com/br3ndonland/gitless-vscode/commit/112a42363540591697685750864bb628fce77146))
+- move notifications to status bar ([112a423](https://github.com/br3ndonland/gitless-vscode/commit/112a42363540591697685750864bb628fce77146))
 
 ## 0.1.0 (2026-03-26)
 
