@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.3](https://github.com/br3ndonland/gitless-vscode/compare/0.1.2...0.1.3) (2026-04-04)
+
+### Bug Fixes
+
+- fix Azure DevOps URL format ([9905a47](https://github.com/br3ndonland/gitless-vscode/commit/9905a4740835df4bb0933d0d573b5373241cdc90))
+- fix checkmark in branch description ([2e9e252](https://github.com/br3ndonland/gitless-vscode/commit/2e9e252fc7efc560b719c7ec09d527e5c53a58ab))
+- show correct file diffs in source control view ([474918b](https://github.com/br3ndonland/gitless-vscode/commit/474918bebcf7af43743244e251d5d56182dea01b))
+- show correct source control view file icons ([4fd3aec](https://github.com/br3ndonland/gitless-vscode/commit/4fd3aec7f4a70490aec0d0fba832ba020113fefa))
+
 ## [0.1.2](https://github.com/br3ndonland/gitless-vscode/compare/0.1.1...0.1.2) (2026-04-04)
 
 ### Bug Fixes
