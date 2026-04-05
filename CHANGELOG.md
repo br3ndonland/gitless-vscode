@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.4](https://github.com/br3ndonland/gitless-vscode/compare/0.1.3...0.1.4) (2026-04-05)
+
+### Bug Fixes
+
+- make tree view tooltips stay visible on hover ([30f46e9](https://github.com/br3ndonland/gitless-vscode/commit/30f46e9b9914671587c47b69f1802f43159100a0))
+
 ## [0.1.3](https://github.com/br3ndonland/gitless-vscode/compare/0.1.2...0.1.3) (2026-04-04)
 
 ### Bug Fixes
