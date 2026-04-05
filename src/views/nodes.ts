@@ -47,17 +47,22 @@ export class CommitNode extends ViewNode {
     this.message = commit.message
     this.description = `${shortenSha(commit.sha)} • ${formatRelativeDate(commit.date)}`
     const copyShaArgs = commandArgs({ sha: commit.sha })
+    const copyMessageArgs = commandArgs({ message: commit.message })
     const openRemoteArgs = commandArgs({ sha: commit.sha })
     this.tooltip = new vscode.MarkdownString(
       `$(git-commit) **${commit.summary}**\n\n` +
         `SHA: \`${commit.sha}\`\n\n` +
         `Author: ${commit.author.name} <${commit.author.email}>\n\n` +
         `Date: ${commit.date.toLocaleString()}\n\n` +
-        (commit.message !== commit.summary ? `---\n\n${commit.message}` : ""),
+        (commit.message !== commit.summary
+          ? `---\n\n${truncateLines(commit.message, 20)}`
+          : ""),
     )
     this.tooltip.appendMarkdown(
       `\n\n---\n\n` +
         `[$(copy) Copy SHA](command:${Commands.CopySha}?${copyShaArgs} "Copy full commit SHA")` +
+        ` | ` +
+        `[$(copy) Copy message](command:${Commands.CopyMessage}?${copyMessageArgs} "Copy full commit message")` +
         ` | ` +
         `[$(link-external) Open on remote](command:${Commands.OpenCommitOnRemote}?${openRemoteArgs} "Open commit on remote")`,
     )
@@ -351,6 +356,15 @@ export class MessageNode extends vscode.TreeItem {
 /** Encode command arguments for use in MarkdownString command URIs. */
 function commandArgs(...args: unknown[]): string {
   return encodeURIComponent(JSON.stringify(args))
+}
+
+/** Truncate text to a maximum number of lines for tooltip display.
+ * VS Code hover widgets are capped at 50% of viewport height, so long
+ * commit messages must be shortened to avoid silent clipping. */
+function truncateLines(text: string, maxLines: number): string {
+  const lines = text.split("\n")
+  if (lines.length <= maxLines) return text
+  return lines.slice(0, maxLines).join("\n") + "\n\n_... (message truncated)_"
 }
 
 function formatRelativeDate(date: Date): string {

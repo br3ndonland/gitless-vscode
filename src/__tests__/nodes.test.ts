@@ -209,6 +209,73 @@ suite("Nodes", () => {
           "tooltip should contain the commit body",
         )
       })
+
+      test("should truncate body exceeding 20 lines with italicized indicator", () => {
+        const bodyLines = Array.from({ length: 30 }, (_, i) => `Line ${i + 1}`)
+        const fullMessage = "summary\n\n" + bodyLines.join("\n")
+        const commit = makeCommit({
+          summary: "summary",
+          message: fullMessage,
+        })
+        const node = new CommitNode(commit, REPO_PATH)
+        const value = tooltipValue(node.tooltip)!
+        assert.ok(
+          value.includes("_... (message truncated)_"),
+          "tooltip should contain italicized truncation indicator",
+        )
+        assert.ok(
+          !value.includes("Line 30"),
+          "tooltip should not contain lines beyond the limit",
+        )
+      })
+
+      test("should not truncate body within 20 lines", () => {
+        const bodyLines = Array.from({ length: 10 }, (_, i) => `Line ${i + 1}`)
+        const fullMessage = "summary\n\n" + bodyLines.join("\n")
+        const commit = makeCommit({
+          summary: "summary",
+          message: fullMessage,
+        })
+        const node = new CommitNode(commit, REPO_PATH)
+        const value = tooltipValue(node.tooltip)!
+        assert.ok(
+          !value.includes("_... (message truncated)_"),
+          "tooltip should not contain truncation indicator for short messages",
+        )
+        assert.ok(value.includes("Line 10"), "tooltip should contain all lines")
+      })
+
+      test("should contain command link for Copy message", () => {
+        const node = new CommitNode(makeCommit(), REPO_PATH)
+        const value = tooltipValue(node.tooltip)!
+        assert.ok(
+          value.includes(`command:${Commands.CopyMessage}?`),
+          "tooltip should contain CopyMessage command URI",
+        )
+      })
+
+      test("should encode full message in Copy message arguments", () => {
+        const commit = makeCommit({
+          summary: "feat: something",
+          message: "feat: something\n\nLong body here.",
+        })
+        const node = new CommitNode(commit, REPO_PATH)
+        const value = tooltipValue(node.tooltip)!
+        const args = decodeCommandArgs(value, Commands.CopyMessage)
+        assert.ok(args, "should have decodable CopyMessage args")
+        assert.deepStrictEqual(args, [
+          { message: "feat: something\n\nLong body here." },
+        ])
+      })
+
+      test("should include title attribute on Copy message link", () => {
+        const node = new CommitNode(makeCommit(), REPO_PATH)
+        const value = tooltipValue(node.tooltip)!
+        assert.ok(
+          value.includes('"Copy full commit message"'),
+          "Copy message link should have a title attribute",
+        )
+      })
     })
   })
 
