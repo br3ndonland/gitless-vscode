@@ -2,7 +2,7 @@
   "name": "gitless-vscode",
   "displayName": "GitLess - VSCode",
   "description": "Git in VSCode with less bloat.",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "publisher": "br3ndonland",
   "license": "MIT",
   "repository": {

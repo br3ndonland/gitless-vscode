@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.5](https://github.com/br3ndonland/gitless-vscode/compare/0.1.4...0.1.5) (2026-04-05)
+
+### Bug Fixes
+
+- truncate long commit tooltips ([153977c](https://github.com/br3ndonland/gitless-vscode/commit/153977c1403c9c5e98928243e6394df83b1b6c1e))
+
 ## [0.1.4](https://github.com/br3ndonland/gitless-vscode/compare/0.1.3...0.1.4) (2026-04-05)
 
 ### Bug Fixes
