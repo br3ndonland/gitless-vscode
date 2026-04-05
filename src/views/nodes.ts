@@ -46,6 +46,8 @@ export class CommitNode extends ViewNode {
     this.sha = commit.sha
     this.message = commit.message
     this.description = `${shortenSha(commit.sha)} • ${formatRelativeDate(commit.date)}`
+    const copyShaArgs = commandArgs({ sha: commit.sha })
+    const openRemoteArgs = commandArgs({ sha: commit.sha })
     this.tooltip = new vscode.MarkdownString(
       `$(git-commit) **${commit.summary}**\n\n` +
         `SHA: \`${commit.sha}\`\n\n` +
@@ -53,6 +55,13 @@ export class CommitNode extends ViewNode {
         `Date: ${commit.date.toLocaleString()}\n\n` +
         (commit.message !== commit.summary ? `---\n\n${commit.message}` : ""),
     )
+    this.tooltip.appendMarkdown(
+      `\n\n---\n\n` +
+        `[$(copy) Copy SHA](command:${Commands.CopySha}?${copyShaArgs} "Copy full commit SHA")` +
+        ` | ` +
+        `[$(link-external) Open on remote](command:${Commands.OpenCommitOnRemote}?${openRemoteArgs} "Open commit on remote")`,
+    )
+    this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon("git-commit")
     this.id = `commit:${commit.sha}`
@@ -83,9 +92,23 @@ export class FileNode extends ViewNode {
     this.description = file.path.includes("/")
       ? file.path.slice(0, file.path.lastIndexOf("/"))
       : ""
+    const openChangesArgs = commandArgs({ sha, filePath: file.path, repoPath })
+    const openRemoteArgs = commandArgs({
+      sha,
+      filePath: file.path,
+      repoPath,
+    })
     this.tooltip = new vscode.MarkdownString(
       `**${file.path}**\n\nStatus: ${file.status}\n\nCommit: \`${sha}\``,
     )
+    this.tooltip.appendMarkdown(
+      `\n\n---\n\n` +
+        `[$(diff) Open changes](command:${Commands.OpenChanges}?${openChangesArgs} "Open file changes")` +
+        ` | ` +
+        `[$(link-external) Open on remote](command:${Commands.OpenFileOnRemote}?${openRemoteArgs} "Open file on remote")`,
+    )
+    this.tooltip.isTrusted = true
+    this.tooltip.supportThemeIcons = true
     this.id = `file:${sha}:${file.path}`
 
     // Use a custom-scheme URI so the active file icon theme resolves the
@@ -145,6 +168,13 @@ export class BranchNode extends ViewNode {
         (branch.sha ? `SHA: \`${branch.sha}\`\n\n` : "") +
         (branch.date ? `Date: ${branch.date.toLocaleString()}` : ""),
     )
+    if (branch.sha) {
+      const compareArgs = commandArgs({ sha: branch.sha, repoPath })
+      this.tooltip.appendMarkdown(
+        `\n\n---\n\n[$(git-compare) Compare with HEAD](command:${Commands.CompareWithHead}?${compareArgs} "Compare branch with HEAD")`,
+      )
+    }
+    this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon(
       branch.current ? "git-branch" : branch.remote ? "cloud" : "git-branch",
@@ -177,6 +207,7 @@ export class RemoteNode extends ViewNode {
           ? `Provider: ${remote.provider.name}\n\nOwner: ${remote.provider.owner}\n\nRepo: ${remote.provider.repo}`
           : ""),
     )
+    this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon("cloud")
     this.id = `remote:${remote.name}`
@@ -210,6 +241,15 @@ export class TagNode extends ViewNode {
         (tag.date ? `Date: ${tag.date.toLocaleString()}\n\n` : "") +
         (tag.message ? `Message: ${tag.message}` : ""),
     )
+    const copyTagArgs = commandArgs({ name: tag.name })
+    const checkoutArgs = commandArgs({ name: tag.name, repoPath })
+    this.tooltip.appendMarkdown(
+      `\n\n---\n\n` +
+        `[$(copy) Copy tag name](command:${Commands.CopyTag}?${copyTagArgs} "Copy tag name to clipboard")` +
+        ` | ` +
+        `[$(check) Checkout](command:${Commands.CheckoutTag}?${checkoutArgs} "Checkout this tag")`,
+    )
+    this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon("tag")
     this.id = `tag:${tag.name}`
@@ -244,6 +284,11 @@ export class StashNode extends ViewNode {
         `Date: ${stash.date.toLocaleString()}\n\n` +
         `SHA: \`${stash.sha}\``,
     )
+    const copyShaArgs = commandArgs({ sha: stash.sha })
+    this.tooltip.appendMarkdown(
+      `\n\n---\n\n[$(copy) Copy SHA](command:${Commands.CopySha}?${copyShaArgs} "Copy full stash SHA")`,
+    )
+    this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon("archive")
     this.id = `stash:${stash.index}`
@@ -283,6 +328,7 @@ export class WorktreeNode extends ViewNode {
         (worktree.bare ? "Bare worktree\n\n" : "") +
         (worktree.main ? "Main worktree" : ""),
     )
+    this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon(
       worktree.main ? "folder-library" : "folder-opened",
@@ -300,7 +346,12 @@ export class MessageNode extends vscode.TreeItem {
   }
 }
 
-// ── Helper ──
+// ── Helpers ──
+
+/** Encode command arguments for use in MarkdownString command URIs. */
+function commandArgs(...args: unknown[]): string {
+  return encodeURIComponent(JSON.stringify(args))
+}
 
 function formatRelativeDate(date: Date): string {
   const now = Date.now()
