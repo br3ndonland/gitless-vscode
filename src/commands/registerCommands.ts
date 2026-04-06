@@ -494,6 +494,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
         leftUri,
         rightUri,
         title,
+        { preview: false },
       )
     }
   })
@@ -512,6 +513,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
         leftUri,
         rightUri,
         title,
+        { preview: false },
       )
     }
   })
