@@ -272,16 +272,32 @@ export class GitService implements vscode.Disposable {
   async searchCommits(
     repoPath: string,
     query: string,
-    options?: { maxCount?: number },
+    options?: {
+      maxCount?: number
+      mode?: "message" | "author" | "file" | "changes"
+    },
   ): Promise<GitCommit[]> {
+    const mode = options?.mode ?? "message"
     const args = [
       "log",
       `--format=${getLogFormat()}`,
       `--max-count=${options?.maxCount ?? 50}`,
       "--all",
-      `--grep=${query}`,
-      "-i",
     ]
+    switch (mode) {
+      case "message":
+        args.push(`--grep=${query}`, "-i")
+        break
+      case "author":
+        args.push(`--author=${query}`, "-i")
+        break
+      case "file":
+        args.push("--", query)
+        break
+      case "changes":
+        args.push(`-S${query}`)
+        break
+    }
     const output = await gitExec(args, { cwd: repoPath })
     return parseCommits(output)
   }

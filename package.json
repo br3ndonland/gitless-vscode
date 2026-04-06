@@ -154,6 +154,26 @@
         "icon": "$(copy)"
       },
       {
+        "command": "gitless.searchCommits",
+        "title": "GitLess: Search Commits",
+        "icon": "$(search)"
+      },
+      {
+        "command": "gitless.compareRefs",
+        "title": "GitLess: Compare References",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "gitless.dismissSearchAndCompareNode",
+        "title": "Dismiss",
+        "icon": "$(close)"
+      },
+      {
+        "command": "gitless.clearSearchAndCompare",
+        "title": "Clear All Results",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "gitless.views.grouped.commits",
         "title": "Show Commits",
         "icon": "$(git-commit)"
@@ -257,6 +277,21 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "gitless.searchCommits",
+          "when": "view == gitless.views.searchAndCompare",
+          "group": "navigation@1"
+        },
+        {
+          "command": "gitless.compareRefs",
+          "when": "view == gitless.views.searchAndCompare",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gitless.clearSearchAndCompare",
+          "when": "view == gitless.views.searchAndCompare",
+          "group": "navigation@3"
+        },
         {
           "command": "gitless.views.grouped.commits",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != commits",
@@ -409,6 +444,16 @@
           "alt": "gitless.compareWorkingWith"
         },
         {
+          "command": "gitless.dismissSearchAndCompareNode",
+          "when": "viewItem =~ /gitless:(compareResult|searchResult)\\b/",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitless.dismissSearchAndCompareNode",
+          "when": "viewItem =~ /gitless:(compareResult|searchResult)\\b/",
+          "group": "1_actions@1"
+        },
+        {
           "command": "gitless.copySha",
           "when": "viewItem =~ /gitless:stash\\b/",
           "group": "1_copy@1"
@@ -456,6 +501,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "gitless.dismissSearchAndCompareNode",
+          "when": "false"
+        },
+        {
+          "command": "gitless.clearSearchAndCompare",
+          "when": "false"
+        },
         {
           "command": "gitless.openFileAtRevision",
           "when": "false"
@@ -570,6 +623,12 @@
         }
       ]
     },
+    "viewsWelcome": [
+      {
+        "view": "gitless.views.searchAndCompare",
+        "contents": "Search commits by message, author, file, or changes.\n[Search Commits...](command:gitless.searchCommits)\nCompare a branch, tag, or ref with another.\n[Compare References...](command:gitless.compareRefs)"
+      }
+    ],
     "configuration": {
       "title": "GitLess",
       "properties": {

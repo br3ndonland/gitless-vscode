@@ -277,14 +277,21 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
   register(Commands.OpenChanges, async (...args: unknown[]) => {
     const node = args[0] as
-      | { sha?: string; filePath?: string; repoPath?: string }
+      | {
+          sha?: string
+          previousSha?: string
+          filePath?: string
+          repoPath?: string
+        }
       | undefined
     if (!node?.sha || !node?.filePath || !node?.repoPath) return
 
-    const parentSha = `${node.sha}~1`
-    const leftUri = makeRevisionUri(node.repoPath, node.filePath, parentSha)
+    const leftSha = node.previousSha ?? `${node.sha}~1`
+    const leftUri = makeRevisionUri(node.repoPath, node.filePath, leftSha)
     const rightUri = makeRevisionUri(node.repoPath, node.filePath, node.sha)
-    const title = `${node.filePath} (${shortenSha(node.sha)})`
+    const title = node.previousSha
+      ? `${node.filePath} (${shortenSha(node.previousSha)} <-> ${shortenSha(node.sha)})`
+      : `${node.filePath} (${shortenSha(node.sha)})`
     await vscode.commands.executeCommand(
       "vscode.diff",
       leftUri,

@@ -339,6 +339,57 @@ suite("Nodes", () => {
         )
       })
     })
+
+    suite("previousSha (compare diffs)", () => {
+      const PREV_SHA = "def0000000000000000000000000000000000000"
+
+      test("should store previousSha when provided", () => {
+        const node = new FileNode(makeFile(), TEST_SHA, REPO_PATH, PREV_SHA)
+        assert.strictEqual(node.previousSha, PREV_SHA)
+      })
+
+      test("should leave previousSha undefined when not provided", () => {
+        const node = new FileNode(makeFile(), TEST_SHA, REPO_PATH)
+        assert.strictEqual(node.previousSha, undefined)
+      })
+
+      test("should include previousSha in click command arguments", () => {
+        const file = makeFile({ path: "src/app.ts" })
+        const node = new FileNode(file, TEST_SHA, REPO_PATH, PREV_SHA)
+        const cmdArgs = node.command?.arguments?.[0] as Record<string, unknown>
+        assert.strictEqual(cmdArgs.previousSha, PREV_SHA)
+        assert.strictEqual(cmdArgs.sha, TEST_SHA)
+      })
+
+      test("should not include previousSha in click args when omitted", () => {
+        const file = makeFile({ path: "src/app.ts" })
+        const node = new FileNode(file, TEST_SHA, REPO_PATH)
+        const cmdArgs = node.command?.arguments?.[0] as Record<string, unknown>
+        assert.strictEqual(cmdArgs.previousSha, undefined)
+      })
+
+      test("should include previousSha in tooltip OpenChanges command args", () => {
+        const file = makeFile({ path: "src/app.ts" })
+        const node = new FileNode(file, TEST_SHA, REPO_PATH, PREV_SHA)
+        const value = tooltipValue(node.tooltip)!
+        const args = decodeCommandArgs(value, Commands.OpenChanges)
+        assert.ok(args, "should have decodable OpenChanges args")
+        const argObj = args[0] as Record<string, unknown>
+        assert.strictEqual(argObj.previousSha, PREV_SHA)
+        assert.strictEqual(argObj.sha, TEST_SHA)
+        assert.strictEqual(argObj.filePath, "src/app.ts")
+      })
+
+      test("should omit previousSha from tooltip args when not provided", () => {
+        const file = makeFile({ path: "src/app.ts" })
+        const node = new FileNode(file, TEST_SHA, REPO_PATH)
+        const value = tooltipValue(node.tooltip)!
+        const args = decodeCommandArgs(value, Commands.OpenChanges)
+        assert.ok(args, "should have decodable OpenChanges args")
+        const argObj = args[0] as Record<string, unknown>
+        assert.strictEqual(argObj.previousSha, undefined)
+      })
+    })
   })
 
   // ── BranchNode ──

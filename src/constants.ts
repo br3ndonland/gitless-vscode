@@ -53,6 +53,11 @@ export const Commands = {
   CopyRemoteCommitFileUrl: "gitless.copyRemoteCommitFileUrl",
   CopyRemoteCommitFileUrlAtRevision:
     "gitless.copyRemoteCommitFileUrlAtRevision",
+  // Search and Compare commands
+  SearchCommits: "gitless.searchCommits",
+  CompareRefs: "gitless.compareRefs",
+  DismissSearchAndCompareNode: "gitless.dismissSearchAndCompareNode",
+  ClearSearchAndCompare: "gitless.clearSearchAndCompare",
   // Toggle commands for grouped view
   ShowCommits: "gitless.views.grouped.commits",
   ShowBranches: "gitless.views.grouped.branches",

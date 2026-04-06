@@ -80,11 +80,15 @@ export class FileNode extends ViewNode {
   readonly sha: string
   readonly filePath: string
   readonly fileStatus: GitFileStatus
+  readonly previousSha?: string
 
   constructor(
     public readonly file: GitFile,
     sha: string,
     repoPath: string,
+    /** Explicit left-side ref for diffs (e.g. ref1 in a compare).
+     *  When omitted, OpenChanges defaults to `sha~1`. */
+    previousSha?: string,
   ) {
     super(
       file.path.split("/").pop() ?? file.path,
@@ -94,10 +98,16 @@ export class FileNode extends ViewNode {
     this.sha = sha
     this.filePath = file.path
     this.fileStatus = file.status
+    this.previousSha = previousSha
     this.description = file.path.includes("/")
       ? file.path.slice(0, file.path.lastIndexOf("/"))
       : ""
-    const openChangesArgs = commandArgs({ sha, filePath: file.path, repoPath })
+    const openChangesArgs = commandArgs({
+      sha,
+      previousSha,
+      filePath: file.path,
+      repoPath,
+    })
     const openRemoteArgs = commandArgs({
       sha,
       filePath: file.path,
@@ -130,7 +140,7 @@ export class FileNode extends ViewNode {
     this.command = {
       title: "Open Changes",
       command: Commands.OpenChanges,
-      arguments: [{ sha, filePath: file.path, repoPath }],
+      arguments: [{ sha, previousSha, filePath: file.path, repoPath }],
     }
   }
 }
