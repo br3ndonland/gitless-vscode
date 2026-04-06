@@ -5,6 +5,11 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Run semantic-release with --dry-run
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -39,7 +44,7 @@ jobs:
 
   release-dry-run:
     needs: build-and-test
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' || inputs.dry_run
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -48,13 +53,19 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          ref: ${{ github.base_ref }}
-      - name: Simulate squash merge of PR branch
+          ref: ${{ github.base_ref || 'main' }}
+      - name: Merge branch
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git merge --squash origin/${{ github.head_ref }}
-          git commit --message "${{ github.event.pull_request.title }} (#${{ github.event.pull_request.number }})"
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git merge --squash origin/${{ github.head_ref }}
+            git commit --message "${{ github.event.pull_request.title }} (#${{ github.event.pull_request.number }})"
+          elif [ "${{ github.ref_name }}" != "main" ]; then
+            git merge --ff-only origin/${{ github.ref_name }}
+          else
+            echo "[INFO] Dispatched from main, skipping simulated merge"
+          fi
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -73,7 +84,7 @@ jobs:
       name: release
       deployment: false
     needs: build-and-test
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || !inputs.dry_run
     runs-on: ubuntu-latest
     permissions:
       contents: write
