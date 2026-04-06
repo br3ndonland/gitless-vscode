@@ -219,7 +219,7 @@
         {
           "id": "gitlessInspect",
           "title": "GitLess Inspect",
-          "icon": "images/icons/phosphor-git-commit.svg"
+          "icon": "images/logo.svg"
         }
       ]
     },

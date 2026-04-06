@@ -1,18 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-  <!-- Diamond shape: rotated rounded rectangle with white border and dark fill -->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
+  <!-- Diamond shape: rotated rounded rectangle with currentColor border and dark fill -->
   <rect
     x="48" y="48" width="160" height="160"
     rx="30" ry="30"
-    fill="#1b1f23"
-    stroke="white"
+    fill="none"
     stroke-width="12"
+    stroke="currentColor"
     transform="rotate(45, 128, 128)"
   />
-  <!-- Git commit symbol (Phosphor git-commit icon, white, scaled to fit) -->
-  <g transform="translate(128,128) scale(0.65) translate(-128,-128)">
-    <path
-      d="M248,120H183.42a56,56,0,0,0-110.84,0H8a8,8,0,0,0,0,16H72.58a56,56,0,0,0,110.84,0H248a8,8,0,0,0,0-16ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"
-      fill="white"
-    />
-  </g>
+  <!-- Git commit vertical symbol (Lucide git-commit-vertical, scaled to fit) -->
+  <line x1="128" y1="42" x2="128" y2="96" stroke-width="12" stroke-linecap="round" stroke="currentColor" />
+  <circle cx="128" cy="128" r="32" stroke-width="12" stroke="currentColor" />
+  <line x1="128" y1="160" x2="128" y2="214" stroke-width="12" stroke-linecap="round" stroke="currentColor" />
 </svg>
