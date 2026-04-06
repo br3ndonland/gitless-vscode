@@ -1,5 +1,15 @@
 # Changelog
 
+# [0.2.0](https://github.com/br3ndonland/gitless-vscode/compare/0.1.5...0.2.0) (2026-04-06)
+
+### Bug Fixes
+
+- keep all files open during "open all changes" ([ba2ce40](https://github.com/br3ndonland/gitless-vscode/commit/ba2ce404ee8de8eb3055426f74ee5cbb51140605))
+
+### Features
+
+- add functional Search and Compare panel ([6b2ed94](https://github.com/br3ndonland/gitless-vscode/commit/6b2ed947d9f940f3e8816a7d16aed64515c417de))
+
 ## [0.1.5](https://github.com/br3ndonland/gitless-vscode/compare/0.1.4...0.1.5) (2026-04-05)
 
 ### Bug Fixes
