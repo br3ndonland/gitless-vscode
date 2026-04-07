@@ -271,15 +271,18 @@
       "gitlessInspect": [
         {
           "id": "gitless.views.fileHistory",
-          "name": "File History"
+          "name": "File History",
+          "icon": "images/icons/file-history.svg"
         },
         {
           "id": "gitless.views.lineHistory",
-          "name": "Line History"
+          "name": "Line History",
+          "icon": "images/icons/line-history.svg"
         },
         {
           "id": "gitless.views.searchAndCompare",
-          "name": "Search and Compare"
+          "name": "Search and Compare",
+          "icon": "images/icons/search-and-compare.svg"
         }
       ]
     },
