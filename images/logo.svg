@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" fill="none">
-  <!-- Diamond shape: rotated rounded rectangle with currentColor border and dark fill -->
+  <!-- Tighten margins and increase stroke weight for better activity bar legibility. -->
   <rect
-    x="48" y="48" width="160" height="160"
-    rx="30" ry="30"
+    x="44" y="44" width="168" height="168"
+    rx="32" ry="32"
     fill="none"
-    stroke-width="12"
     stroke="currentColor"
-    transform="rotate(45, 128, 128)"
+    stroke-width="16"
+    transform="rotate(45 128 128)"
   />
-  <!-- Git commit vertical symbol (Lucide git-commit-vertical, scaled to fit) -->
-  <line x1="128" y1="42" x2="128" y2="96" stroke-width="12" stroke-linecap="round" stroke="currentColor" />
-  <circle cx="128" cy="128" r="32" stroke-width="12" stroke="currentColor" />
-  <line x1="128" y1="160" x2="128" y2="214" stroke-width="12" stroke-linecap="round" stroke="currentColor" />
+  <!-- Scale the inner git mark up so it does not fade next to filled icons. -->
+  <line x1="128" y1="30" x2="128" y2="86" stroke="currentColor" stroke-width="16" stroke-linecap="round" />
+  <circle cx="128" cy="128" r="38" stroke="currentColor" stroke-width="16" />
+  <line x1="128" y1="170" x2="128" y2="226" stroke="currentColor" stroke-width="16" stroke-linecap="round" />
 </svg>
