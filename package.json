@@ -206,32 +206,50 @@
       {
         "command": "gitless.views.grouped.commits.active",
         "title": "Commits (active)",
-        "icon": "$(circle-filled)"
+        "icon": {
+          "dark": "images/icons/dark/git-commit-filled.svg",
+          "light": "images/icons/light/git-commit-filled.svg"
+        }
       },
       {
         "command": "gitless.views.grouped.branches.active",
         "title": "Branches (active)",
-        "icon": "$(circle-filled)"
+        "icon": {
+          "dark": "images/icons/dark/git-branch-filled.svg",
+          "light": "images/icons/light/git-branch-filled.svg"
+        }
       },
       {
         "command": "gitless.views.grouped.remotes.active",
         "title": "Remotes (active)",
-        "icon": "$(circle-filled)"
+        "icon": {
+          "dark": "images/icons/dark/cloud-filled.svg",
+          "light": "images/icons/light/cloud-filled.svg"
+        }
       },
       {
         "command": "gitless.views.grouped.stashes.active",
         "title": "Stashes (active)",
-        "icon": "$(circle-filled)"
+        "icon": {
+          "dark": "images/icons/dark/archive-filled.svg",
+          "light": "images/icons/light/archive-filled.svg"
+        }
       },
       {
         "command": "gitless.views.grouped.tags.active",
         "title": "Tags (active)",
-        "icon": "$(circle-filled)"
+        "icon": {
+          "dark": "images/icons/dark/tag-filled.svg",
+          "light": "images/icons/light/tag-filled.svg"
+        }
       },
       {
         "command": "gitless.views.grouped.worktrees.active",
         "title": "Worktrees (active)",
-        "icon": "$(circle-filled)"
+        "icon": {
+          "dark": "images/icons/dark/folder-opened-filled.svg",
+          "light": "images/icons/light/folder-opened-filled.svg"
+        }
       }
     ],
     "viewsContainers": {
