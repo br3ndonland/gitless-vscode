@@ -1,5 +1,12 @@
 # Changelog
 
+# [0.3.0](https://github.com/br3ndonland/gitless-vscode/compare/0.2.0...0.3.0) (2026-04-07)
+
+### Features
+
+- show outgoing commit indicators ([310c313](https://github.com/br3ndonland/gitless-vscode/commit/310c3137b2927acb306f47d80751338370647a03))
+- use filled icon for active Source Control view ([b104e2b](https://github.com/br3ndonland/gitless-vscode/commit/b104e2b573a52369e554b3da3f9649e882ab17b6))
+
 # [0.2.0](https://github.com/br3ndonland/gitless-vscode/compare/0.1.5...0.2.0) (2026-04-06)
 
 ### Bug Fixes
