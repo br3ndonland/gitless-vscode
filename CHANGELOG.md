@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.1](https://github.com/br3ndonland/gitless-vscode/compare/0.3.0...0.3.1) (2026-04-07)
+
+### Bug Fixes
+
+- add inspect view icons ([5c0c8c6](https://github.com/br3ndonland/gitless-vscode/commit/5c0c8c6eb65c7e6b9c106794ae0ba96b47b0fb1b))
+
 # [0.3.0](https://github.com/br3ndonland/gitless-vscode/compare/0.2.0...0.3.0) (2026-04-07)
 
 ### Features
