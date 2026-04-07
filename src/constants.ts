@@ -60,16 +60,16 @@ export const Commands = {
   ClearSearchAndCompare: "gitless.clearSearchAndCompare",
   // Toggle commands for grouped view
   ShowCommits: "gitless.views.grouped.commits",
+  ShowTags: "gitless.views.grouped.tags",
   ShowBranches: "gitless.views.grouped.branches",
   ShowRemotes: "gitless.views.grouped.remotes",
   ShowStashes: "gitless.views.grouped.stashes",
-  ShowTags: "gitless.views.grouped.tags",
   ShowWorktrees: "gitless.views.grouped.worktrees",
   // Active (no-op) variants for grouped view
   ShowCommitsActive: "gitless.views.grouped.commits.active",
+  ShowTagsActive: "gitless.views.grouped.tags.active",
   ShowBranchesActive: "gitless.views.grouped.branches.active",
   ShowRemotesActive: "gitless.views.grouped.remotes.active",
   ShowStashesActive: "gitless.views.grouped.stashes.active",
-  ShowTagsActive: "gitless.views.grouped.tags.active",
   ShowWorktreesActive: "gitless.views.grouped.worktrees.active",
 } as const

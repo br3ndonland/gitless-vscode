@@ -73,6 +73,9 @@ export class GroupedView implements vscode.Disposable {
       vscode.commands.registerCommand("gitless.views.grouped.commits", () =>
         this.setView("commits"),
       ),
+      vscode.commands.registerCommand("gitless.views.grouped.tags", () =>
+        this.setView("tags"),
+      ),
       vscode.commands.registerCommand("gitless.views.grouped.branches", () =>
         this.setView("branches"),
       ),
@@ -81,9 +84,6 @@ export class GroupedView implements vscode.Disposable {
       ),
       vscode.commands.registerCommand("gitless.views.grouped.stashes", () =>
         this.setView("stashes"),
-      ),
-      vscode.commands.registerCommand("gitless.views.grouped.tags", () =>
-        this.setView("tags"),
       ),
       vscode.commands.registerCommand("gitless.views.grouped.worktrees", () =>
         this.setView("worktrees"),
@@ -98,6 +98,10 @@ export class GroupedView implements vscode.Disposable {
         noop,
       ),
       vscode.commands.registerCommand(
+        "gitless.views.grouped.tags.active",
+        noop,
+      ),
+      vscode.commands.registerCommand(
         "gitless.views.grouped.branches.active",
         noop,
       ),
@@ -107,10 +111,6 @@ export class GroupedView implements vscode.Disposable {
       ),
       vscode.commands.registerCommand(
         "gitless.views.grouped.stashes.active",
-        noop,
-      ),
-      vscode.commands.registerCommand(
-        "gitless.views.grouped.tags.active",
         noop,
       ),
       vscode.commands.registerCommand(

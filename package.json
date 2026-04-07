@@ -179,6 +179,11 @@
         "icon": "$(git-commit)"
       },
       {
+        "command": "gitless.views.grouped.tags",
+        "title": "Show Tags",
+        "icon": "$(tag)"
+      },
+      {
         "command": "gitless.views.grouped.branches",
         "title": "Show Branches",
         "icon": "$(git-branch)"
@@ -194,11 +199,6 @@
         "icon": "$(archive)"
       },
       {
-        "command": "gitless.views.grouped.tags",
-        "title": "Show Tags",
-        "icon": "$(tag)"
-      },
-      {
         "command": "gitless.views.grouped.worktrees",
         "title": "Show Worktrees",
         "icon": "$(folder-opened)"
@@ -209,6 +209,14 @@
         "icon": {
           "dark": "images/icons/dark/git-commit-filled.svg",
           "light": "images/icons/light/git-commit-filled.svg"
+        }
+      },
+      {
+        "command": "gitless.views.grouped.tags.active",
+        "title": "Tags (active)",
+        "icon": {
+          "dark": "images/icons/dark/tag-filled.svg",
+          "light": "images/icons/light/tag-filled.svg"
         }
       },
       {
@@ -233,14 +241,6 @@
         "icon": {
           "dark": "images/icons/dark/archive-filled.svg",
           "light": "images/icons/light/archive-filled.svg"
-        }
-      },
-      {
-        "command": "gitless.views.grouped.tags.active",
-        "title": "Tags (active)",
-        "icon": {
-          "dark": "images/icons/dark/tag-filled.svg",
-          "light": "images/icons/light/tag-filled.svg"
         }
       },
       {
@@ -321,43 +321,43 @@
           "group": "navigation@1"
         },
         {
-          "command": "gitless.views.grouped.branches",
-          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != branches",
-          "group": "navigation@2"
-        },
-        {
-          "command": "gitless.views.grouped.branches.active",
-          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == branches",
-          "group": "navigation@2"
-        },
-        {
-          "command": "gitless.views.grouped.remotes",
-          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != remotes",
-          "group": "navigation@3"
-        },
-        {
-          "command": "gitless.views.grouped.remotes.active",
-          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == remotes",
-          "group": "navigation@3"
-        },
-        {
-          "command": "gitless.views.grouped.stashes",
-          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != stashes",
-          "group": "navigation@4"
-        },
-        {
-          "command": "gitless.views.grouped.stashes.active",
-          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == stashes",
-          "group": "navigation@4"
-        },
-        {
           "command": "gitless.views.grouped.tags",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != tags",
-          "group": "navigation@5"
+          "group": "navigation@2"
         },
         {
           "command": "gitless.views.grouped.tags.active",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == tags",
+          "group": "navigation@2"
+        },
+        {
+          "command": "gitless.views.grouped.branches",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != branches",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gitless.views.grouped.branches.active",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == branches",
+          "group": "navigation@3"
+        },
+        {
+          "command": "gitless.views.grouped.remotes",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != remotes",
+          "group": "navigation@4"
+        },
+        {
+          "command": "gitless.views.grouped.remotes.active",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == remotes",
+          "group": "navigation@4"
+        },
+        {
+          "command": "gitless.views.grouped.stashes",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != stashes",
+          "group": "navigation@5"
+        },
+        {
+          "command": "gitless.views.grouped.stashes.active",
+          "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == stashes",
           "group": "navigation@5"
         },
         {
@@ -596,6 +596,10 @@
           "when": "false"
         },
         {
+          "command": "gitless.views.grouped.tags",
+          "when": "false"
+        },
+        {
           "command": "gitless.views.grouped.branches",
           "when": "false"
         },
@@ -608,15 +612,15 @@
           "when": "false"
         },
         {
-          "command": "gitless.views.grouped.tags",
-          "when": "false"
-        },
-        {
           "command": "gitless.views.grouped.worktrees",
           "when": "false"
         },
         {
           "command": "gitless.views.grouped.commits.active",
+          "when": "false"
+        },
+        {
+          "command": "gitless.views.grouped.tags.active",
           "when": "false"
         },
         {
@@ -629,10 +633,6 @@
         },
         {
           "command": "gitless.views.grouped.stashes.active",
-          "when": "false"
-        },
-        {
-          "command": "gitless.views.grouped.tags.active",
           "when": "false"
         },
         {
