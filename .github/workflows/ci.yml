@@ -77,7 +77,7 @@ jobs:
           unset GITHUB_ACTIONS
           pnpm exec semantic-release --extends ./release.config.package.mjs --dry-run --no-ci
         env:
-          VSCE_PRE_RELEASE: true
+          VSCE_PRE_RELEASE: false
 
   release:
     environment:
@@ -108,4 +108,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_FGT }}
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-          VSCE_PRE_RELEASE: true
+          VSCE_PRE_RELEASE: false
