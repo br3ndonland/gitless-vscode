@@ -16,6 +16,11 @@ import { shortenSha } from "../config"
  * without conflicting with real workspace file decorations. */
 export const FILE_NODE_URI_SCHEME = "gitless-file"
 
+export interface CommitNodeOptions {
+  outgoing?: boolean
+  upstreamName?: string
+}
+
 // Base class for all tree view nodes
 export abstract class ViewNode extends vscode.TreeItem {
   abstract readonly contextValue: string
@@ -37,20 +42,34 @@ export class CommitNode extends ViewNode {
   readonly contextValue = ContextValues.Commit
   readonly sha: string
   readonly message: string
+  readonly outgoing: boolean
+  readonly upstreamName?: string
 
   constructor(
     public readonly commit: GitCommit,
     repoPath: string,
+    options: CommitNodeOptions = {},
   ) {
     super(commit.summary, repoPath, vscode.TreeItemCollapsibleState.Collapsed)
     this.sha = commit.sha
     this.message = commit.message
-    this.description = `${shortenSha(commit.sha)} • ${formatRelativeDate(commit.date)}`
+    this.outgoing = options.outgoing ?? false
+    this.upstreamName = options.upstreamName
+    const descriptionParts = [
+      shortenSha(commit.sha),
+      formatRelativeDate(commit.date),
+    ]
+    if (this.outgoing) descriptionParts.push("outgoing")
+    this.description = descriptionParts.join(" | ")
     const copyShaArgs = commandArgs({ sha: commit.sha })
     const copyMessageArgs = commandArgs({ message: commit.message })
     const openRemoteArgs = commandArgs({ sha: commit.sha })
+    const statusLine = this.outgoing
+      ? `Status: outgoing${this.upstreamName ? ` to ${this.upstreamName}` : ""}\n\n`
+      : ""
     this.tooltip = new vscode.MarkdownString(
       `$(git-commit) **${commit.summary}**\n\n` +
+        statusLine +
         `SHA: \`${commit.sha}\`\n\n` +
         `Author: ${commit.author.name} <${commit.author.email}>\n\n` +
         `Date: ${commit.date.toLocaleString()}\n\n` +
@@ -68,7 +87,12 @@ export class CommitNode extends ViewNode {
     )
     this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
-    this.iconPath = new vscode.ThemeIcon("git-commit")
+    this.iconPath = new vscode.ThemeIcon(
+      "git-commit",
+      this.outgoing
+        ? new vscode.ThemeColor("gitDecoration.addedResourceForeground")
+        : undefined,
+    )
     this.id = `commit:${commit.sha}`
   }
 }
@@ -167,18 +191,22 @@ export class BranchNode extends ViewNode {
     }
 
     const parts: string[] = []
-    if (branch.current) parts.push("\u2713")
+    if (branch.current) parts.push("current")
     if (branch.upstream) {
-      parts.push(`→ ${branch.upstream.name}`)
-      if (branch.upstream.missing) parts.push("(gone)")
+      const upstreamStatus = formatBranchUpstreamStatus(branch.upstream)
+      parts.push(
+        upstreamStatus
+          ? `-> ${branch.upstream.name} (${upstreamStatus})`
+          : `-> ${branch.upstream.name}`,
+      )
     }
-    this.description = parts.join(" ")
+    this.description = parts.join(" | ")
 
     this.tooltip = new vscode.MarkdownString(
       `$(git-branch) **${branch.name}**\n\n` +
         (branch.current ? "Current branch\n\n" : "") +
         (branch.upstream
-          ? `Upstream: ${branch.upstream.name}${branch.upstream.missing ? " (gone)" : ""}\n\n`
+          ? `Upstream: ${branch.upstream.name}${formatBranchUpstreamDescription(branch.upstream)}\n\n`
           : "") +
         (branch.sha ? `SHA: \`${branch.sha}\`\n\n` : "") +
         (branch.date ? `Date: ${branch.date.toLocaleString()}` : ""),
@@ -193,6 +221,9 @@ export class BranchNode extends ViewNode {
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon(
       branch.current ? "git-branch" : branch.remote ? "cloud" : "git-branch",
+      branch.upstream && branch.upstream.ahead > 0
+        ? new vscode.ThemeColor("gitDecoration.addedResourceForeground")
+        : undefined,
     )
     this.id = `branch:${branch.remote ? "remote:" : ""}${branch.name}`
   }
@@ -375,6 +406,23 @@ function truncateLines(text: string, maxLines: number): string {
   const lines = text.split("\n")
   if (lines.length <= maxLines) return text
   return lines.slice(0, maxLines).join("\n") + "\n\n_... (message truncated)_"
+}
+
+function formatBranchUpstreamStatus(
+  upstream: NonNullable<GitBranch["upstream"]>,
+): string {
+  const parts: string[] = []
+  if (upstream.missing) parts.push("gone")
+  if (upstream.ahead > 0) parts.push(`${upstream.ahead} ahead`)
+  if (upstream.behind > 0) parts.push(`${upstream.behind} behind`)
+  return parts.join(", ")
+}
+
+function formatBranchUpstreamDescription(
+  upstream: NonNullable<GitBranch["upstream"]>,
+): string {
+  const status = formatBranchUpstreamStatus(upstream)
+  return status ? ` (${status})` : ""
 }
 
 function formatRelativeDate(date: Date): string {

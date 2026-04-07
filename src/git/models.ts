@@ -15,14 +15,18 @@ export interface GitAuthor {
   date: Date
 }
 
+export interface GitBranchUpstream {
+  name: string
+  missing: boolean
+  ahead: number
+  behind: number
+}
+
 export interface GitBranch {
   name: string
   remote: boolean
   current: boolean
-  upstream?: {
-    name: string
-    missing: boolean
-  }
+  upstream?: GitBranchUpstream
   sha?: string
   date?: Date
 }

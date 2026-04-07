@@ -1,6 +1,7 @@
 import type {
   GitCommit,
   GitBranch,
+  GitBranchUpstream,
   GitRemote,
   GitTag,
   GitStash,
@@ -82,21 +83,34 @@ export function parseBranches(output: string): GitBranch[] {
     const name = parts[1]
     const sha = parts[2]
     const upstream = parts[3] || undefined
+    const upstreamStatus = parseUpstreamTrack(parts[4])
     const date = parts[5] ? new Date(parts[5]) : undefined
 
     branches.push({
       name,
       remote: false,
       current,
-      upstream: upstream
-        ? { name: upstream, missing: parts[4]?.includes("gone") ?? false }
-        : undefined,
+      upstream: upstream ? { name: upstream, ...upstreamStatus } : undefined,
       sha,
       date,
     })
   }
 
   return branches
+}
+
+function parseUpstreamTrack(
+  track: string | undefined,
+): Omit<GitBranchUpstream, "name"> {
+  const normalized = track?.trim() ?? ""
+  const aheadMatch = normalized.match(/ahead (\d+)/)
+  const behindMatch = normalized.match(/behind (\d+)/)
+
+  return {
+    missing: normalized.includes("gone"),
+    ahead: aheadMatch ? Number.parseInt(aheadMatch[1], 10) : 0,
+    behind: behindMatch ? Number.parseInt(behindMatch[1], 10) : 0,
+  }
 }
 
 export function parseRemoteBranches(output: string): GitBranch[] {

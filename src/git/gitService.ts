@@ -131,6 +131,30 @@ export class GitService implements vscode.Disposable {
     return parseRemotes(output)
   }
 
+  async getOutgoingCommitShasForBranch(
+    repoPath: string,
+    branch: GitBranch,
+  ): Promise<string[]> {
+    if (
+      !branch.upstream ||
+      branch.upstream.missing ||
+      branch.upstream.ahead === 0
+    )
+      return []
+
+    const output = await gitExec(
+      [
+        "rev-list",
+        `--max-count=${branch.upstream.ahead}`,
+        branch.name,
+        `^${branch.upstream.name}`,
+      ],
+      { cwd: repoPath },
+    )
+
+    return output.trim().split("\n").filter(Boolean)
+  }
+
   async getTags(repoPath: string): Promise<GitTag[]> {
     const output = await gitExec(
       [

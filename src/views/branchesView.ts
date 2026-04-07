@@ -28,11 +28,23 @@ export class BranchesView implements vscode.TreeDataProvider<vscode.TreeItem> {
       try {
         const sha = element.branch.sha
         if (!sha) return [new MessageNode("No commits")]
-        const commits = await this.gitService.getCommits(repoPath, {
-          ref: element.branch.name,
-          maxCount: 20,
-        })
-        return commits.map((c) => new CommitNode(c, repoPath))
+        const [commits, outgoingShas] = await Promise.all([
+          this.gitService.getCommits(repoPath, {
+            ref: element.branch.name,
+            maxCount: 20,
+          }),
+          this.gitService
+            .getOutgoingCommitShasForBranch(repoPath, element.branch)
+            .catch(() => []),
+        ])
+        const outgoingCommitShas = new Set(outgoingShas)
+        return commits.map(
+          (commit) =>
+            new CommitNode(commit, repoPath, {
+              outgoing: outgoingCommitShas.has(commit.sha),
+              upstreamName: element.branch.upstream?.name,
+            }),
+        )
       } catch {
         return [new MessageNode("Failed to load commits")]
       }

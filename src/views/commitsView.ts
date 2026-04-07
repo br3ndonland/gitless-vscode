@@ -38,9 +38,28 @@ export class CommitsView implements vscode.TreeDataProvider<vscode.TreeItem> {
 
     if (!element) {
       try {
-        const commits = await this.gitService.getCommits(repoPath)
+        const [commits, branches] = await Promise.all([
+          this.gitService.getCommits(repoPath),
+          this.gitService.getBranches(repoPath).catch(() => []),
+        ])
         if (commits.length === 0) return [new MessageNode("No commits found")]
-        return commits.map((c) => new CommitNode(c, repoPath))
+
+        const currentBranch = branches.find((branch) => branch.current)
+        const outgoingCommitShas = new Set(
+          currentBranch
+            ? await this.gitService
+                .getOutgoingCommitShasForBranch(repoPath, currentBranch)
+                .catch(() => [])
+            : [],
+        )
+
+        return commits.map(
+          (commit) =>
+            new CommitNode(commit, repoPath, {
+              outgoing: outgoingCommitShas.has(commit.sha),
+              upstreamName: currentBranch?.upstream?.name,
+            }),
+        )
       } catch {
         return [new MessageNode("Failed to load commits")]
       }

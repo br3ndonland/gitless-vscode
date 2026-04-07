@@ -96,8 +96,19 @@ suite("Parsers", () => {
       assert.strictEqual(branches[0].name, "main")
       assert.strictEqual(branches[0].current, true)
       assert.strictEqual(branches[0].upstream?.name, "origin/main")
+      assert.strictEqual(branches[0].upstream?.ahead, 0)
+      assert.strictEqual(branches[0].upstream?.behind, 0)
       assert.strictEqual(branches[1].name, "feature")
       assert.strictEqual(branches[1].current, false)
+    })
+
+    test("should parse ahead and behind tracking counts", () => {
+      const output =
+        " <|>feature<|>abc123<|>origin/feature<|>[ahead 2, behind 1]<|> 2024-01-15T10:00:00-05:00"
+      const branches = parseBranches(output)
+      assert.strictEqual(branches.length, 1)
+      assert.strictEqual(branches[0].upstream?.ahead, 2)
+      assert.strictEqual(branches[0].upstream?.behind, 1)
     })
 
     test("should handle branches with gone upstream", () => {
@@ -106,6 +117,8 @@ suite("Parsers", () => {
       const branches = parseBranches(output)
       assert.strictEqual(branches.length, 1)
       assert.strictEqual(branches[0].upstream?.missing, true)
+      assert.strictEqual(branches[0].upstream?.ahead, 0)
+      assert.strictEqual(branches[0].upstream?.behind, 0)
     })
   })
 

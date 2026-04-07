@@ -1,6 +1,6 @@
 import * as assert from "node:assert"
 import { suite, test } from "mocha"
-import { MarkdownString } from "vscode"
+import { MarkdownString, ThemeIcon } from "vscode"
 import {
   CommitNode,
   FileNode,
@@ -276,6 +276,31 @@ suite("Nodes", () => {
           "Copy message link should have a title attribute",
         )
       })
+
+      test("should mark outgoing commits in the tree item UI", () => {
+        const node = new CommitNode(makeCommit(), REPO_PATH, {
+          outgoing: true,
+          upstreamName: "origin/main",
+        })
+        assert.strictEqual(node.outgoing, true)
+        const description =
+          typeof node.description === "string" ? node.description : ""
+        assert.ok(
+          description.includes("outgoing"),
+          "description should include outgoing marker",
+        )
+        const value = tooltipValue(node.tooltip)!
+        assert.ok(
+          value.includes("Status: outgoing to origin/main"),
+          "tooltip should include outgoing status",
+        )
+        assert.ok(node.iconPath instanceof ThemeIcon)
+        assert.strictEqual((node.iconPath as ThemeIcon).id, "git-commit")
+        assert.strictEqual(
+          (node.iconPath as ThemeIcon).color?.id,
+          "gitDecoration.addedResourceForeground",
+        )
+      })
     })
   })
 
@@ -434,6 +459,40 @@ suite("Nodes", () => {
         assert.ok(
           value.includes('"Compare branch with HEAD"'),
           "Compare link should have a title attribute",
+        )
+      })
+
+      test("should include ahead and behind status when tracking data exists", () => {
+        const node = new BranchNode(
+          makeBranch({
+            upstream: {
+              name: "origin/main",
+              missing: false,
+              ahead: 2,
+              behind: 1,
+            },
+          }),
+          REPO_PATH,
+        )
+        const description =
+          typeof node.description === "string" ? node.description : ""
+        assert.ok(
+          description.includes("2 ahead"),
+          "description should include ahead count",
+        )
+        assert.ok(
+          description.includes("1 behind"),
+          "description should include behind count",
+        )
+        const value = tooltipValue(node.tooltip)!
+        assert.ok(
+          value.includes("Upstream: origin/main (2 ahead, 1 behind)"),
+          "tooltip should include tracking status",
+        )
+        assert.ok(node.iconPath instanceof ThemeIcon)
+        assert.strictEqual(
+          (node.iconPath as ThemeIcon).color?.id,
+          "gitDecoration.addedResourceForeground",
         )
       })
     })
