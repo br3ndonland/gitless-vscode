@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.2](https://github.com/br3ndonland/gitless-vscode/compare/0.3.1...0.3.2) (2026-04-08)
+
+### Bug Fixes
+
+- close truncated code fences in commit tooltips ([1701b0c](https://github.com/br3ndonland/gitless-vscode/commit/1701b0c204489b919ff9758bd3edadb348d68488))
+
 ## [0.3.1](https://github.com/br3ndonland/gitless-vscode/compare/0.3.0...0.3.1) (2026-04-07)
 
 ### Bug Fixes
