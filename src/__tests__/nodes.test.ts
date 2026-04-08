@@ -229,6 +229,31 @@ suite("Nodes", () => {
         )
       })
 
+      test("should close a truncated fenced code block before the footer links", () => {
+        const bodyLines = [
+          "```toml",
+          ...Array.from({ length: 24 }, (_, i) => `key${i + 1} = "value"`),
+          "```",
+        ]
+        const fullMessage = "summary\n\n" + bodyLines.join("\n")
+        const commit = makeCommit({
+          summary: "summary",
+          message: fullMessage,
+        })
+        const node = new CommitNode(commit, REPO_PATH)
+        const value = tooltipValue(node.tooltip)!
+        assert.ok(
+          value.includes('key17 = "value"\n```\n\n_... (message truncated)_'),
+          "tooltip should close the fenced code block before truncation text",
+        )
+        assert.ok(
+          value.includes(
+            "_... (message truncated)_\n\n---\n\n[$(copy) Copy SHA]",
+          ),
+          "tooltip footer links should remain outside the code block",
+        )
+      })
+
       test("should not truncate body within 20 lines", () => {
         const bodyLines = Array.from({ length: 10 }, (_, i) => `Line ${i + 1}`)
         const fullMessage = "summary\n\n" + bodyLines.join("\n")

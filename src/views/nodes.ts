@@ -404,8 +404,34 @@ function commandArgs(...args: unknown[]): string {
  * commit messages must be shortened to avoid silent clipping. */
 function truncateLines(text: string, maxLines: number): string {
   const lines = text.split("\n")
-  if (lines.length <= maxLines) return text
-  return lines.slice(0, maxLines).join("\n") + "\n\n_... (message truncated)_"
+  const displayText =
+    lines.length <= maxLines ? text : lines.slice(0, maxLines).join("\n")
+  const balancedDisplayText = closeUnterminatedCodeFence(displayText)
+  if (lines.length <= maxLines) return balancedDisplayText
+  return balancedDisplayText + "\n\n_... (message truncated)_"
+}
+
+/** Close an open fenced code block so later tooltip markdown is not swallowed. */
+function closeUnterminatedCodeFence(text: string): string {
+  let openFence: string | undefined
+
+  for (const line of text.split("\n")) {
+    const trimmedLine = line.trimStart()
+    const fenceMatch = trimmedLine.match(/^(`{3,}|~{3,})/)
+    if (!fenceMatch) continue
+
+    const marker = fenceMatch[1]
+    if (!openFence) {
+      openFence = marker
+      continue
+    }
+
+    if (marker[0] === openFence[0] && marker.length >= openFence.length) {
+      openFence = undefined
+    }
+  }
+
+  return openFence ? `${text}\n${openFence}` : text
 }
 
 function formatBranchUpstreamStatus(
