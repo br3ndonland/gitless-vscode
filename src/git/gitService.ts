@@ -296,6 +296,29 @@ export class GitService implements vscode.Disposable {
     return parseFiles(output)
   }
 
+  async getStashFiles(repoPath: string, stashSha: string): Promise<GitFile[]> {
+    const trackedOutput = await this.gitExec(
+      ["stash", "show", "--name-status", stashSha],
+      { cwd: repoPath },
+    )
+    const trackedFiles = parseFiles(trackedOutput)
+
+    try {
+      const untrackedOutput = await this.gitExec(
+        ["stash", "show", "--only-untracked", "--name-status", stashSha],
+        { cwd: repoPath },
+      )
+      const untrackedFiles = parseFiles(untrackedOutput).map((file) => ({
+        ...file,
+        status: "untracked" as const,
+      }))
+
+      return [...trackedFiles, ...untrackedFiles]
+    } catch {
+      return trackedFiles
+    }
+  }
+
   async getTagCommits(
     repoPath: string,
     tagName: string,

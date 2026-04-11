@@ -26,11 +26,24 @@ export class StashesView implements vscode.TreeDataProvider<vscode.TreeItem> {
 
     if (element instanceof StashNode) {
       try {
-        const files = await this.gitService.getCommitFiles(
+        const files = await this.gitService.getStashFiles(
           element.repoPath,
           element.sha,
         )
-        return files.map((f) => new FileNode(f, element.sha, element.repoPath))
+        const baseSha = `${element.sha}^1`
+        return files.map((file) =>
+          file.status === "untracked"
+            ? new FileNode(
+                file,
+                `${element.sha}^3`,
+                element.repoPath,
+                baseSha,
+                { remoteSha: baseSha },
+              )
+            : new FileNode(file, element.sha, element.repoPath, undefined, {
+                remoteSha: baseSha,
+              }),
+        )
       } catch {
         return [new MessageNode("Failed to load files")]
       }

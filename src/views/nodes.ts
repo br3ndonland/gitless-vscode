@@ -22,6 +22,10 @@ export interface CommitNodeOptions {
   upstreamName?: string
 }
 
+export interface FileNodeOptions {
+  remoteSha?: string
+}
+
 // Base class for all tree view nodes
 export abstract class ViewNode extends vscode.TreeItem {
   abstract readonly contextValue: string
@@ -106,6 +110,7 @@ export class FileNode extends ViewNode {
   readonly filePath: string
   readonly fileStatus: GitFileStatus
   readonly previousSha?: string
+  readonly remoteSha?: string
 
   constructor(
     public readonly file: GitFile,
@@ -114,6 +119,7 @@ export class FileNode extends ViewNode {
     /** Explicit left-side ref for diffs (e.g. ref1 in a compare).
      *  When omitted, OpenChanges defaults to `sha~1`. */
     previousSha?: string,
+    options: FileNodeOptions = {},
   ) {
     super(
       file.path.split("/").pop() ?? file.path,
@@ -124,6 +130,7 @@ export class FileNode extends ViewNode {
     this.filePath = file.path
     this.fileStatus = file.status
     this.previousSha = previousSha
+    this.remoteSha = options.remoteSha
     this.description = file.path.includes("/")
       ? file.path.slice(0, file.path.lastIndexOf("/"))
       : ""
@@ -135,6 +142,7 @@ export class FileNode extends ViewNode {
     })
     const openRemoteArgs = commandArgs({
       sha,
+      remoteSha: options.remoteSha,
       filePath: file.path,
       repoPath,
     })

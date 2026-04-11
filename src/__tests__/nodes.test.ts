@@ -462,6 +462,42 @@ suite("Nodes", () => {
         assert.strictEqual(argObj.previousSha, undefined)
       })
     })
+
+    suite("remoteSha", () => {
+      const REMOTE_SHA = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+
+      test("should store remoteSha when provided", () => {
+        const node = new FileNode(makeFile(), TEST_SHA, REPO_PATH, undefined, {
+          remoteSha: REMOTE_SHA,
+        })
+
+        assert.strictEqual(node.remoteSha, REMOTE_SHA)
+      })
+
+      test("should include remoteSha in Open on remote command args", () => {
+        const node = new FileNode(makeFile(), TEST_SHA, REPO_PATH, undefined, {
+          remoteSha: REMOTE_SHA,
+        })
+        const value = tooltipValue(node.tooltip)!
+        const args = decodeCommandArgs(value, Commands.OpenFileOnRemote)
+
+        assert.ok(args, "should have decodable OpenFileOnRemote args")
+        assert.deepStrictEqual(args, [
+          {
+            sha: TEST_SHA,
+            remoteSha: REMOTE_SHA,
+            filePath: "src/index.ts",
+            repoPath: REPO_PATH,
+          },
+        ])
+      })
+
+      test("should leave remoteSha undefined when omitted", () => {
+        const node = new FileNode(makeFile(), TEST_SHA, REPO_PATH)
+
+        assert.strictEqual(node.remoteSha, undefined)
+      })
+    })
   })
 
   // ── BranchNode ──

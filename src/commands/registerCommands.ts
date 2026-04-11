@@ -11,6 +11,30 @@ interface CommandContext {
   outputChannel: vscode.OutputChannel
 }
 
+interface RemoteRevisionNode {
+  sha?: string
+  remoteSha?: string
+}
+
+interface RemoteFileNode extends RemoteRevisionNode {
+  filePath?: string
+  repoPath?: string
+}
+
+export function getRemoteRevisionSha(
+  node: RemoteRevisionNode | undefined,
+): string | undefined {
+  return node?.remoteSha ?? node?.sha
+}
+
+export function getRemoteFileUrlRevision(
+  node: RemoteRevisionNode | undefined,
+  branch: string | undefined,
+): { sha?: string; branch?: string } {
+  const sha = getRemoteRevisionSha(node)
+  return sha ? { sha } : { branch }
+}
+
 export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   const { gitService } = ctx
   const disposables: vscode.Disposable[] = []
@@ -55,6 +79,20 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
     node?: { repoPath?: string } | undefined,
   ): Promise<string | undefined> {
     return node?.repoPath ?? (await gitService.getActiveRepoPath())
+  }
+
+  async function resolveRemoteRevisionSha(
+    repoPath: string,
+    node: RemoteRevisionNode | undefined,
+  ): Promise<string | undefined> {
+    const ref = getRemoteRevisionSha(node)
+    if (!ref) return undefined
+
+    try {
+      return await gitService.getShaForRef(repoPath, ref)
+    } catch {
+      return ref
+    }
   }
 
   // Helper: copy to clipboard and show message (status bar, auto-dismisses)
@@ -154,17 +192,13 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
   register(Commands.CopyRemoteFileUrl, async (...args: unknown[]) => {
     // Check if called from tree view context
-    const node = args[0] as
-      | { sha?: string; filePath?: string; repoPath?: string }
-      | undefined
+    const node = args[0] as RemoteFileNode | undefined
     let filePath: string | undefined
     let repoPath: string | undefined
-    let ref: string | undefined
 
     if (node?.filePath) {
       filePath = node.filePath
       repoPath = await getRepoPath(node)
-      ref = undefined // use HEAD branch
     } else {
       const fileInfo = await getActiveFileInfo()
       if (!fileInfo?.relativePath) {
@@ -182,11 +216,13 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
       return
     }
 
-    const branch = ref ?? (await gitService.getHeadBranch(repoPath))
+    const sha = await resolveRemoteRevisionSha(repoPath, node)
+    const branch = sha ? undefined : await gitService.getHeadBranch(repoPath)
+    const revision = getRemoteFileUrlRevision({ sha }, branch)
     const url = getRemoteUrl(remote.provider, {
       type: "file",
       fileName: filePath,
-      branch,
+      ...revision,
     })
     if (url) await copyToClipboard(url, "file URL")
   })
@@ -350,9 +386,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   })
 
   register(Commands.OpenFileOnRemote, async (...args: unknown[]) => {
-    const node = args[0] as
-      | { sha?: string; filePath?: string; repoPath?: string }
-      | undefined
+    const node = args[0] as RemoteFileNode | undefined
 
     let filePath: string | undefined
     let repoPath: string | undefined
@@ -361,7 +395,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
     if (node?.filePath && node?.repoPath) {
       filePath = node.filePath
       repoPath = node.repoPath
-      sha = node.sha
+      sha = await resolveRemoteRevisionSha(node.repoPath, node)
     } else {
       const fileInfo = await getActiveFileInfo()
       if (!fileInfo?.relativePath) {
@@ -558,10 +592,8 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   // ── Share/Link Commands ──
 
   register(Commands.CopyRemoteFileUrlAtRevision, async (...args: unknown[]) => {
-    const node = args[0] as
-      | { sha?: string; filePath?: string; repoPath?: string }
-      | undefined
-    if (!node?.sha || !node?.filePath) return
+    const node = args[0] as RemoteFileNode | undefined
+    if (!getRemoteRevisionSha(node) || !node?.filePath) return
 
     const repoPath = await getRepoPath(node)
     if (!repoPath) return
@@ -572,23 +604,26 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
       return
     }
 
+    const sha = await resolveRemoteRevisionSha(repoPath, node)
+    if (!sha) return
+
     const url = getRemoteUrl(remote.provider, {
       type: "file",
       fileName: node.filePath,
-      sha: node.sha,
+      sha,
     })
     if (url) await copyToClipboard(url, "file URL at revision")
   })
 
   register(Commands.CopyRemoteCommitFileUrl, async (...args: unknown[]) => {
-    const node = args[0] as
-      | { sha?: string; filePath?: string; repoPath?: string }
-      | undefined
+    const node = args[0] as RemoteFileNode | undefined
 
     const repoPath = await getRepoPath(node)
     if (!repoPath) return
 
-    const sha = node?.sha ?? (await gitService.getHeadSha(repoPath))
+    const sha =
+      (await resolveRemoteRevisionSha(repoPath, node)) ??
+      (await gitService.getHeadSha(repoPath))
 
     const remote = await getPreferredRemote(repoPath)
     if (!remote?.provider) {
@@ -603,10 +638,8 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   register(
     Commands.CopyRemoteCommitFileUrlAtRevision,
     async (...args: unknown[]) => {
-      const node = args[0] as
-        | { sha?: string; filePath?: string; repoPath?: string }
-        | undefined
-      if (!node?.sha || !node?.filePath) return
+      const node = args[0] as RemoteFileNode | undefined
+      if (!getRemoteRevisionSha(node) || !node?.filePath) return
 
       const repoPath = await getRepoPath(node)
       if (!repoPath) return
@@ -617,10 +650,13 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
         return
       }
 
+      const sha = await resolveRemoteRevisionSha(repoPath, node)
+      if (!sha) return
+
       const url = getRemoteUrl(remote.provider, {
         type: "file",
         fileName: node.filePath,
-        sha: node.sha,
+        sha,
       })
       if (url) await copyToClipboard(url, "link to commit at revision")
     },

@@ -10,6 +10,7 @@ const NON_GIT = "/workspace/not-git"
 const MULTI_REPO = "/workspace/multi-repo"
 const FASTENV = `${MULTI_REPO}/fastenv`
 const TEMPLATE_PYTHON = `${MULTI_REPO}/template-python`
+const STASH_SHA = "cccccccccccccccccccccccccccccccccccccccc"
 const SCAN_DEPTH_ROOT = "/workspace/scan-depth"
 const SCAN_DEPTH_REPOS = [
   `${SCAN_DEPTH_ROOT}/repo-depth-1`,
@@ -159,6 +160,50 @@ async function gitExecStub(
   throw new Error(`Unexpected git command: ${args.join(" ")}`)
 }
 
+function createStashFilesService(overrides?: {
+  trackedOutput?: string
+  untrackedOutput?: string
+  failUntracked?: boolean
+}): { service: GitService; calls: GitExecArgs[] } {
+  const trackedOutput = overrides?.trackedOutput ?? ""
+  const untrackedOutput = overrides?.untrackedOutput ?? ""
+  const failUntracked = overrides?.failUntracked ?? false
+  const calls: GitExecArgs[] = []
+
+  const service = new GitService({
+    async gitExec(args: GitExecArgs): Promise<string> {
+      calls.push([...args])
+
+      if (
+        args[0] === "stash" &&
+        args[1] === "show" &&
+        args[2] === "--name-status" &&
+        args[3] === STASH_SHA
+      ) {
+        return trackedOutput
+      }
+
+      if (
+        args[0] === "stash" &&
+        args[1] === "show" &&
+        args[2] === "--only-untracked" &&
+        args[3] === "--name-status" &&
+        args[4] === STASH_SHA
+      ) {
+        if (failUntracked) throw new Error("untracked lookup failed")
+        return untrackedOutput
+      }
+
+      throw new Error(`Unexpected git command: ${args.join(" ")}`)
+    },
+    workspace: createWorkspaceStub([]).stub,
+    window: createWindowStub().stub,
+    commands: createCommandsStub(),
+  })
+
+  return { service, calls }
+}
+
 function getRepositoryForPath(
   fsPath: string,
 ): { rootPath: string; headSha: string; headBranch: string } | undefined {
@@ -254,6 +299,85 @@ function normalizePath(filePath: string): string {
 }
 
 suite("GitService", () => {
+  suite("getStashFiles", () => {
+    test("should use stash show rather than diff-tree", async () => {
+      const { service, calls } = createStashFilesService({
+        trackedOutput: "M\tsrc/tracked.ts",
+        untrackedOutput: "A\tsrc/untracked.ts",
+      })
+
+      await service.getStashFiles(REPO_A, STASH_SHA)
+
+      assert.deepStrictEqual(calls, [
+        ["stash", "show", "--name-status", STASH_SHA],
+        ["stash", "show", "--only-untracked", "--name-status", STASH_SHA],
+      ])
+      assert.ok(
+        calls.every((args) => args[0] !== "diff-tree"),
+        "stash files should not use diff-tree",
+      )
+
+      service.dispose()
+    })
+
+    test("should return tracked stash files", async () => {
+      const { service } = createStashFilesService({
+        trackedOutput: "M\tsrc/tracked.ts",
+      })
+
+      const files = await service.getStashFiles(REPO_A, STASH_SHA)
+
+      assert.deepStrictEqual(files, [
+        { path: "src/tracked.ts", originalPath: undefined, status: "modified" },
+      ])
+
+      service.dispose()
+    })
+
+    test("should return an empty list when both outputs are empty", async () => {
+      const { service } = createStashFilesService()
+
+      const files = await service.getStashFiles(REPO_A, STASH_SHA)
+
+      assert.deepStrictEqual(files, [])
+
+      service.dispose()
+    })
+
+    test("should mark only-untracked entries as untracked", async () => {
+      const { service } = createStashFilesService({
+        untrackedOutput: "A\tsrc/untracked.ts",
+      })
+
+      const files = await service.getStashFiles(REPO_A, STASH_SHA)
+
+      assert.deepStrictEqual(files, [
+        {
+          path: "src/untracked.ts",
+          originalPath: undefined,
+          status: "untracked",
+        },
+      ])
+
+      service.dispose()
+    })
+
+    test("should return tracked files when untracked lookup fails", async () => {
+      const { service } = createStashFilesService({
+        trackedOutput: "M\tsrc/tracked.ts",
+        failUntracked: true,
+      })
+
+      const files = await service.getStashFiles(REPO_A, STASH_SHA)
+
+      assert.deepStrictEqual(files, [
+        { path: "src/tracked.ts", originalPath: undefined, status: "modified" },
+      ])
+
+      service.dispose()
+    })
+  })
+
   test("should discover and dedupe repositories from workspace folders", async () => {
     const workspace = createWorkspaceStub([
       REPO_A,
