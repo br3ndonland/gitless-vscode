@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import type { GitService } from "../git/gitService"
-import { CommitNode, FileNode, MessageNode } from "./nodes"
+import { CommitNode, FileNode, MessageNode, getRepositoryLabel } from "./nodes"
 import { ViewIds, Commands, ContextValues } from "../constants"
 import { shortenSha } from "../config"
 
@@ -21,15 +21,16 @@ export class CompareResultNode extends vscode.TreeItem {
     public readonly ref1Label: string,
     public readonly ref2Label: string,
     public readonly repoPath: string,
+    public readonly repoLabel = getRepositoryLabel(repoPath),
     collapsibleState = vscode.TreeItemCollapsibleState.Collapsed,
     idSuffix = "",
   ) {
     super(`${ref1Label} <-> ${ref2Label}`, collapsibleState)
     this.iconPath = new vscode.ThemeIcon("git-compare")
-    this.id = `compare:${ref1}:${ref2}${idSuffix}`
-    this.description = "comparison"
+    this.id = `compare:${repoPath}:${ref1}:${ref2}${idSuffix}`
+    this.description = `comparison | ${this.repoLabel}`
     this.tooltip = new vscode.MarkdownString(
-      `$(git-compare) **${ref1Label}** (\`${shortenSha(ref1)}\`) <-> **${ref2Label}** (\`${shortenSha(ref2)}\`)`,
+      `$(git-compare) **${ref1Label}** (\`${shortenSha(ref1)}\`) <-> **${ref2Label}** (\`${shortenSha(ref2)}\`)\n\nRepository: ${this.repoLabel}`,
     )
     this.tooltip.supportThemeIcons = true
   }
@@ -41,15 +42,16 @@ export class SearchResultNode extends vscode.TreeItem {
     public readonly query: string,
     public readonly repoPath: string,
     public readonly mode: SearchMode = "message",
+    public readonly repoLabel = getRepositoryLabel(repoPath),
     collapsibleState = vscode.TreeItemCollapsibleState.Collapsed,
     idSuffix = "",
   ) {
     super(`"${query}"`, collapsibleState)
     this.iconPath = new vscode.ThemeIcon("search")
-    this.id = `search:${mode}:${query}${idSuffix}`
-    this.description = `by ${searchModeLabels[mode]}`
+    this.id = `search:${repoPath}:${mode}:${query}${idSuffix}`
+    this.description = `by ${searchModeLabels[mode]} | ${this.repoLabel}`
     this.tooltip = new vscode.MarkdownString(
-      `$(search) Search: **${query}**\n\nMode: ${searchModeLabels[mode]}`,
+      `$(search) Search: **${query}**\n\nMode: ${searchModeLabels[mode]}\n\nRepository: ${this.repoLabel}`,
     )
     this.tooltip.supportThemeIcons = true
   }
@@ -76,6 +78,8 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
         showCollapseAll: true,
       })
       this.disposables.push(this.treeView)
+      this.disposables.push(this.gitService.onDidChange(() => this.refresh()))
+      void this.updateViewDescription()
 
       this.disposables.push(
         vscode.commands.registerCommand(Commands.SearchCommits, () =>
@@ -97,6 +101,7 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
   }
 
   refresh(): void {
+    void this.updateViewDescription()
     this._onDidChangeTreeData.fire()
   }
 
@@ -105,9 +110,6 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
-    const repoPath = await this.gitService.getRepoPath()
-    if (!repoPath) return [new MessageNode("No repository found")]
-
     if (element instanceof CompareResultNode) {
       try {
         const files = await this.gitService.diff(
@@ -141,10 +143,10 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
     if (element instanceof CommitNode) {
       try {
         const files = await this.gitService.getCommitFiles(
-          repoPath,
+          element.repoPath,
           element.sha,
         )
-        return files.map((f) => new FileNode(f, element.sha, repoPath))
+        return files.map((f) => new FileNode(f, element.sha, element.repoPath))
       } catch {
         return [new MessageNode("Failed to load files")]
       }
@@ -152,6 +154,10 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
 
     // Root level: return items (welcome content shows when empty via viewsWelcome)
     if (!element) {
+      const repoPath = await this.gitService.getActiveRepoPath()
+      if (!repoPath && this.items.length === 0) {
+        return [new MessageNode("No repository found")]
+      }
       return this.items
     }
 
@@ -159,8 +165,9 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
   }
 
   private async searchCommits(): Promise<void> {
-    const repoPath = await this.gitService.getRepoPath()
-    if (!repoPath) return
+    const activeRepository = await this.gitService.getActiveRepository()
+    if (!activeRepository) return
+    const repoPath = activeRepository.path
 
     // Step 1: Pick search mode (or type a query to search messages directly)
     const modeResult = await this.pickSearchMode()
@@ -191,6 +198,7 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
         query,
         repoPath,
         mode,
+        activeRepository.label,
         vscode.TreeItemCollapsibleState.Expanded,
       ),
     )
@@ -261,8 +269,9 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
   }
 
   private async compareRefs(): Promise<void> {
-    const repoPath = await this.gitService.getRepoPath()
-    if (!repoPath) return
+    const activeRepository = await this.gitService.getActiveRepository()
+    if (!activeRepository) return
+    const repoPath = activeRepository.path
 
     const refItems = await this.buildRefPickItems(repoPath)
 
@@ -291,6 +300,7 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
           ref1Pick.label,
           ref2Pick.label,
           repoPath,
+          activeRepository.label,
           vscode.TreeItemCollapsibleState.Expanded,
         ),
       )
@@ -366,6 +376,7 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
           item.ref1Label,
           item.ref2Label,
           item.repoPath,
+          item.repoLabel,
           vscode.TreeItemCollapsibleState.Collapsed,
           suffix,
         )
@@ -374,6 +385,7 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
         item.query,
         item.repoPath,
         item.mode,
+        item.repoLabel,
         vscode.TreeItemCollapsibleState.Collapsed,
         suffix,
       )
@@ -410,6 +422,7 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
             query,
             repoPath,
             mode,
+            getRepositoryLabel(repoPath),
             vscode.TreeItemCollapsibleState.Expanded,
           ),
         )
@@ -430,6 +443,7 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
             ref1Label,
             ref2Label,
             repoPath,
+            getRepositoryLabel(repoPath),
             vscode.TreeItemCollapsibleState.Expanded,
           ),
         )
@@ -444,5 +458,17 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
   dispose(): void {
     this.disposables.forEach((d) => d.dispose())
     this._onDidChangeTreeData.dispose()
+  }
+
+  private async updateViewDescription(): Promise<void> {
+    if (!this.treeView) return
+
+    const [repositories, activeRepository] = await Promise.all([
+      this.gitService.getRepositories(),
+      this.gitService.getActiveRepository(),
+    ])
+
+    this.treeView.description =
+      repositories.length > 1 ? activeRepository?.label : undefined
   }
 }

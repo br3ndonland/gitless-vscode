@@ -1,5 +1,7 @@
 export const EXTENSION_ID = "gitless"
 export const EXTENSION_NAME = "GitLess"
+export const GROUPED_VIEW_CONTEXT_KEY = "gitless:views:scm:grouped:view"
+export const MULTIPLE_REPOSITORIES_CONTEXT_KEY = "gitless:repositories:multiple"
 
 export const enum ContextValues {
   Commit = "gitless:commit",
@@ -49,6 +51,7 @@ export const Commands = {
   OpenAllChanges: "gitless.openAllChanges",
   OpenAllChangesWithWorking: "gitless.openAllChangesWithWorking",
   RefreshView: "gitless.refreshView",
+  SelectRepository: "gitless.selectRepository",
   CopyRemoteFileUrlAtRevision: "gitless.copyRemoteFileUrlAtRevision",
   CopyRemoteCommitFileUrl: "gitless.copyRemoteCommitFileUrl",
   CopyRemoteCommitFileUrlAtRevision:

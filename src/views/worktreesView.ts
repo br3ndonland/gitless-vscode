@@ -21,7 +21,7 @@ export class WorktreesView implements vscode.TreeDataProvider<vscode.TreeItem> {
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
-    const repoPath = await this.gitService.getRepoPath()
+    const repoPath = await this.gitService.getActiveRepoPath()
     if (!repoPath) return [new MessageNode("No repository found")]
 
     if (element instanceof WorktreeNode) {
@@ -32,7 +32,7 @@ export class WorktreesView implements vscode.TreeDataProvider<vscode.TreeItem> {
           element.worktree.path,
           { maxCount: 20 },
         )
-        return commits.map((c) => new CommitNode(c, repoPath))
+        return commits.map((c) => new CommitNode(c, element.worktree.path))
       } catch {
         return [new MessageNode("Failed to load commits")]
       }
@@ -41,10 +41,10 @@ export class WorktreesView implements vscode.TreeDataProvider<vscode.TreeItem> {
     if (element instanceof CommitNode) {
       try {
         const files = await this.gitService.getCommitFiles(
-          repoPath,
+          element.repoPath,
           element.sha,
         )
-        return files.map((f) => new FileNode(f, element.sha, repoPath))
+        return files.map((f) => new FileNode(f, element.sha, element.repoPath))
       } catch {
         return [new MessageNode("Failed to load files")]
       }

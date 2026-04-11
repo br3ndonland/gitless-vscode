@@ -34,6 +34,7 @@ function makeGitServiceStub(overrides?: {
   const outgoingShas = overrides?.outgoingShas ?? []
 
   return {
+    getActiveRepoPath: async () => repoPath,
     getRepoPath: async () => repoPath,
     getCommits: async () => commits,
     getBranches: async () => branches,
@@ -90,6 +91,7 @@ suite("CommitsView", () => {
       "feat: local change",
     )
     const view = new CommitsView({
+      getActiveRepoPath: async () => REPO_PATH,
       getRepoPath: async () => REPO_PATH,
       getCommits: async () => [commit],
       getBranches: async () => {

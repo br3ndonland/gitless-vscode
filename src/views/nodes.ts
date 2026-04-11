@@ -1,3 +1,4 @@
+import * as path from "node:path"
 import * as vscode from "vscode"
 import type {
   GitCommit,
@@ -63,7 +64,7 @@ export class CommitNode extends ViewNode {
     this.description = descriptionParts.join(" | ")
     const copyShaArgs = commandArgs({ sha: commit.sha })
     const copyMessageArgs = commandArgs({ message: commit.message })
-    const openRemoteArgs = commandArgs({ sha: commit.sha })
+    const openRemoteArgs = commandArgs({ sha: commit.sha, repoPath })
     const statusLine = this.outgoing
       ? `Status: outgoing${this.upstreamName ? ` to ${this.upstreamName}` : ""}\n\n`
       : ""
@@ -93,7 +94,7 @@ export class CommitNode extends ViewNode {
         ? new vscode.ThemeColor("gitDecoration.addedResourceForeground")
         : undefined,
     )
-    this.id = `commit:${commit.sha}`
+    this.id = `commit:${repoPath}:${commit.sha}`
   }
 }
 
@@ -148,7 +149,7 @@ export class FileNode extends ViewNode {
     )
     this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
-    this.id = `file:${sha}:${file.path}`
+    this.id = `file:${repoPath}:${sha}:${file.path}`
 
     // Use a custom-scheme URI so the active file icon theme resolves the
     // icon by filename/extension, without conflicting with real workspace
@@ -225,7 +226,7 @@ export class BranchNode extends ViewNode {
         ? new vscode.ThemeColor("gitDecoration.addedResourceForeground")
         : undefined,
     )
-    this.id = `branch:${branch.remote ? "remote:" : ""}${branch.name}`
+    this.id = `branch:${repoPath}:${branch.remote ? "remote:" : ""}${branch.name}`
   }
 }
 
@@ -256,7 +257,7 @@ export class RemoteNode extends ViewNode {
     this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon("cloud")
-    this.id = `remote:${remote.name}`
+    this.id = `remote:${repoPath}:${remote.name}`
   }
 }
 
@@ -298,7 +299,7 @@ export class TagNode extends ViewNode {
     this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon("tag")
-    this.id = `tag:${tag.name}`
+    this.id = `tag:${repoPath}:${tag.name}`
   }
 }
 
@@ -337,7 +338,7 @@ export class StashNode extends ViewNode {
     this.tooltip.isTrusted = true
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon("archive")
-    this.id = `stash:${stash.index}`
+    this.id = `stash:${repoPath}:${stash.index}`
   }
 }
 
@@ -379,7 +380,7 @@ export class WorktreeNode extends ViewNode {
     this.iconPath = new vscode.ThemeIcon(
       worktree.main ? "folder-library" : "folder-opened",
     )
-    this.id = `worktree:${worktree.path}`
+    this.id = `worktree:${repoPath}:${worktree.path}`
   }
 }
 
@@ -469,4 +470,8 @@ function formatRelativeDate(date: Date): string {
   if (hours > 0) return `${hours}h ago`
   if (minutes > 0) return `${minutes}m ago`
   return "just now"
+}
+
+export function getRepositoryLabel(repoPath: string): string {
+  return path.basename(repoPath) || repoPath
 }

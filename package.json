@@ -139,6 +139,11 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "gitless.selectRepository",
+        "title": "GitLess: Select Repository",
+        "icon": "$(repo)"
+      },
+      {
         "command": "gitless.copyRemoteFileUrlAtRevision",
         "title": "GitLess: Copy remote file URL at revision",
         "icon": "$(copy)"
@@ -304,74 +309,84 @@
           "group": "navigation@1"
         },
         {
+          "command": "gitless.selectRepository",
+          "when": "view == gitless.views.searchAndCompare && gitless:repositories:multiple",
+          "group": "navigation@2"
+        },
+        {
           "command": "gitless.compareRefs",
           "when": "view == gitless.views.searchAndCompare",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "gitless.clearSearchAndCompare",
           "when": "view == gitless.views.searchAndCompare",
-          "group": "navigation@3"
+          "group": "navigation@4"
+        },
+        {
+          "command": "gitless.selectRepository",
+          "when": "view == gitless.views.scm.grouped && gitless:repositories:multiple",
+          "group": "navigation@1"
         },
         {
           "command": "gitless.views.grouped.commits",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != commits",
-          "group": "navigation@1"
+          "group": "navigation@2"
         },
         {
           "command": "gitless.views.grouped.commits.active",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == commits",
-          "group": "navigation@1"
+          "group": "navigation@2"
         },
         {
           "command": "gitless.views.grouped.tags",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != tags",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "gitless.views.grouped.tags.active",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == tags",
-          "group": "navigation@2"
+          "group": "navigation@3"
         },
         {
           "command": "gitless.views.grouped.branches",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != branches",
-          "group": "navigation@3"
+          "group": "navigation@4"
         },
         {
           "command": "gitless.views.grouped.branches.active",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == branches",
-          "group": "navigation@3"
+          "group": "navigation@4"
         },
         {
           "command": "gitless.views.grouped.remotes",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != remotes",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "gitless.views.grouped.remotes.active",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == remotes",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "gitless.views.grouped.stashes",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != stashes",
-          "group": "navigation@5"
+          "group": "navigation@6"
         },
         {
           "command": "gitless.views.grouped.stashes.active",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == stashes",
-          "group": "navigation@5"
+          "group": "navigation@6"
         },
         {
           "command": "gitless.views.grouped.worktrees",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view != worktrees",
-          "group": "navigation@6"
+          "group": "navigation@7"
         },
         {
           "command": "gitless.views.grouped.worktrees.active",
           "when": "view == gitless.views.scm.grouped && gitless:views:scm:grouped:view == worktrees",
-          "group": "navigation@6"
+          "group": "navigation@7"
         }
       ],
       "view/item/context": [

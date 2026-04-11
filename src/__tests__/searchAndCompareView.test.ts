@@ -39,10 +39,20 @@ function makeGitServiceStub(overrides?: {
 }): GitService {
   const repoPath =
     overrides && "repoPath" in overrides ? overrides.repoPath : REPO_PATH
+  const repository = repoPath
+    ? {
+        path: repoPath,
+        rootUri: `file://${repoPath}`,
+        label: "repo",
+      }
+    : undefined
   const searchResults = overrides?.searchResults ?? []
   const diffResults = overrides?.diffResults ?? []
   const commitFiles = overrides?.commitFiles ?? []
   return {
+    getActiveRepoPath: async () => repoPath,
+    getActiveRepository: async () => repository,
+    getRepositories: async () => (repository ? [repository] : []),
     getRepoPath: async () => repoPath,
     searchCommits: async () => searchResults,
     diff: async () => diffResults,
@@ -86,6 +96,7 @@ suite("SearchAndCompareView", () => {
         "main",
         "dev",
         REPO_PATH,
+        undefined,
         TreeItemCollapsibleState.Expanded,
       )
       assert.strictEqual(
@@ -112,15 +123,16 @@ suite("SearchAndCompareView", () => {
         "main",
         "dev",
         REPO_PATH,
+        undefined,
         TreeItemCollapsibleState.Collapsed,
         ":g1",
       )
       assert.ok(node.id!.endsWith(":g1"))
     })
 
-    test("should set description to comparison", () => {
+    test("should include comparison and repo label in description", () => {
       const node = new CompareResultNode(SHA_A, SHA_B, "main", "dev", REPO_PATH)
-      assert.strictEqual(node.description, "comparison")
+      assert.strictEqual(node.description, "comparison | repo")
     })
 
     test("should have a MarkdownString tooltip with ref labels", () => {
@@ -129,6 +141,7 @@ suite("SearchAndCompareView", () => {
       const value = (node.tooltip as MarkdownString).value
       assert.ok(value.includes("main"), "tooltip should contain ref1Label")
       assert.ok(value.includes("dev"), "tooltip should contain ref2Label")
+      assert.ok(value.includes("Repository: repo"))
     })
   })
 
@@ -153,6 +166,7 @@ suite("SearchAndCompareView", () => {
         "fix login",
         REPO_PATH,
         "message",
+        undefined,
         TreeItemCollapsibleState.Expanded,
       )
       assert.strictEqual(
@@ -169,19 +183,19 @@ suite("SearchAndCompareView", () => {
     test("should accept author mode", () => {
       const node = new SearchResultNode("john", REPO_PATH, "author")
       assert.strictEqual(node.mode, "author")
-      assert.strictEqual(node.description, "by Author")
+      assert.strictEqual(node.description, "by Author | repo")
     })
 
     test("should accept file mode", () => {
       const node = new SearchResultNode("src/index.ts", REPO_PATH, "file")
       assert.strictEqual(node.mode, "file")
-      assert.strictEqual(node.description, "by File")
+      assert.strictEqual(node.description, "by File | repo")
     })
 
     test("should accept changes mode", () => {
       const node = new SearchResultNode("TODO", REPO_PATH, "changes")
       assert.strictEqual(node.mode, "changes")
-      assert.strictEqual(node.description, "by Changes")
+      assert.strictEqual(node.description, "by Changes | repo")
     })
 
     test("should set contextValue to SearchResult", () => {
@@ -200,6 +214,7 @@ suite("SearchAndCompareView", () => {
         "fix",
         REPO_PATH,
         "message",
+        undefined,
         TreeItemCollapsibleState.Collapsed,
         ":g2",
       )
@@ -212,6 +227,7 @@ suite("SearchAndCompareView", () => {
       const value = (node.tooltip as MarkdownString).value
       assert.ok(value.includes("fix login"), "tooltip should contain query")
       assert.ok(value.includes("Author"), "tooltip should contain mode label")
+      assert.ok(value.includes("Repository: repo"))
     })
   })
 

@@ -10,8 +10,10 @@ export class LineHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
   private treeView: vscode.TreeView<vscode.TreeItem>
+  private activeRepoPath: string | undefined
   private activeFilePath: string | undefined
   private activeSelection: { start: number; end: number } | undefined
+  private readonly disposables: vscode.Disposable[] = []
 
   constructor(private readonly gitService: GitService) {
     this.treeView = vscode.window.createTreeView(ViewIds.LineHistory, {
@@ -19,27 +21,14 @@ export class LineHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
       showCollapseAll: true,
     })
 
-    vscode.window.onDidChangeTextEditorSelection((e) => {
-      if (e.textEditor.document.uri.scheme !== "file") return
+    this.disposables.push(
+      this.treeView,
+      vscode.window.onDidChangeTextEditorSelection((e) => {
+        if (e.textEditor.document.uri.scheme !== "file") return
 
-      const workspaceFolder = vscode.workspace.getWorkspaceFolder(
-        e.textEditor.document.uri,
-      )
-      if (!workspaceFolder) return
-
-      const selection = e.selections[0]
-      if (!selection) return
-
-      this.activeFilePath = vscode.workspace.asRelativePath(
-        e.textEditor.document.uri,
-        false,
-      )
-      this.activeSelection = {
-        start: selection.start.line + 1,
-        end: selection.end.line + 1,
-      }
-      this.refresh()
-    })
+        void this.updateSelection(e)
+      }),
+    )
   }
 
   refresh(): void {
@@ -51,8 +40,7 @@ export class LineHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
-    const repoPath = await this.gitService.getRepoPath()
-    if (!repoPath) return [new MessageNode("No repository found")]
+    if (!this.activeRepoPath) return [new MessageNode("No repository found")]
 
     if (!this.activeFilePath || !this.activeSelection) {
       return [new MessageNode("Select lines to see their history")]
@@ -61,7 +49,7 @@ export class LineHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
     if (!element) {
       try {
         const commits = await this.gitService.getLineHistory(
-          repoPath,
+          this.activeRepoPath,
           this.activeFilePath,
           this.activeSelection.start,
           this.activeSelection.end,
@@ -70,7 +58,7 @@ export class LineHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
           return [new MessageNode("No history found for selection")]
         }
         this.treeView.description = `${this.activeFilePath} L${this.activeSelection.start}-${this.activeSelection.end}`
-        return commits.map((c) => new CommitNode(c, repoPath))
+        return commits.map((c) => new CommitNode(c, this.activeRepoPath!))
       } catch {
         return [new MessageNode("Failed to load line history")]
       }
@@ -80,7 +68,27 @@ export class LineHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
   }
 
   dispose(): void {
-    this.treeView.dispose()
+    this.disposables.forEach((d) => d.dispose())
     this._onDidChangeTreeData.dispose()
+  }
+
+  private async updateSelection(
+    event: vscode.TextEditorSelectionChangeEvent,
+  ): Promise<void> {
+    const fileContext = await this.gitService.getRepoFileContext(
+      event.textEditor.document.uri,
+    )
+    if (!fileContext) return
+
+    const selection = event.selections[0]
+    if (!selection) return
+
+    this.activeRepoPath = fileContext.repoPath
+    this.activeFilePath = fileContext.relativePath
+    this.activeSelection = {
+      start: selection.start.line + 1,
+      end: selection.end.line + 1,
+    }
+    this.refresh()
   }
 }

@@ -21,18 +21,18 @@ export class TagsView implements vscode.TreeDataProvider<vscode.TreeItem> {
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
-    const repoPath = await this.gitService.getRepoPath()
+    const repoPath = await this.gitService.getActiveRepoPath()
     if (!repoPath) return [new MessageNode("No repository found")]
 
     if (element instanceof TagNode) {
       try {
         const commits = await this.gitService.getTagCommits(
-          repoPath,
+          element.repoPath,
           element.tag.name,
           { maxCount: 20 },
         )
         if (commits.length === 0) return [new MessageNode("No commits")]
-        return commits.map((c) => new CommitNode(c, repoPath))
+        return commits.map((c) => new CommitNode(c, element.repoPath))
       } catch {
         return [new MessageNode("Failed to load commits")]
       }
@@ -41,10 +41,10 @@ export class TagsView implements vscode.TreeDataProvider<vscode.TreeItem> {
     if (element instanceof CommitNode) {
       try {
         const files = await this.gitService.getCommitFiles(
-          repoPath,
+          element.repoPath,
           element.sha,
         )
-        return files.map((f) => new FileNode(f, element.sha, repoPath))
+        return files.map((f) => new FileNode(f, element.sha, element.repoPath))
       } catch {
         return [new MessageNode("Failed to load files")]
       }

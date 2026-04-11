@@ -1,5 +1,6 @@
 import * as vscode from "vscode"
 import type { GitService } from "../git/gitService"
+import { Commands, GROUPED_VIEW_CONTEXT_KEY, ViewIds } from "../constants"
 import { CommitsView } from "./commitsView"
 import { BranchesView } from "./branchesView"
 import { RemotesView } from "./remotesView"
@@ -33,7 +34,7 @@ export class GroupedView implements vscode.Disposable {
   private subViews: Record<GroupedViewType, SubView>
   private readonly disposables: vscode.Disposable[] = []
 
-  constructor(gitService: GitService) {
+  constructor(private readonly gitService: GitService) {
     // Create all sub-view providers
     this.subViews = {
       commits: new CommitsView(gitService),
@@ -56,7 +57,7 @@ export class GroupedView implements vscode.Disposable {
     }
 
     // Create the single tree view
-    this.treeView = vscode.window.createTreeView("gitless.views.scm.grouped", {
+    this.treeView = vscode.window.createTreeView(ViewIds.ScmGrouped, {
       treeDataProvider: {
         onDidChangeTreeData: this._onDidChangeTreeData.event,
         getTreeItem: (element: vscode.TreeItem) =>
@@ -67,25 +68,28 @@ export class GroupedView implements vscode.Disposable {
       showCollapseAll: true,
     })
     this.disposables.push(this.treeView)
+    this.disposables.push(
+      this.gitService.onDidChange(() => void this.updateViewState()),
+    )
 
     // Register toggle commands (switch to view)
     this.disposables.push(
-      vscode.commands.registerCommand("gitless.views.grouped.commits", () =>
+      vscode.commands.registerCommand(Commands.ShowCommits, () =>
         this.setView("commits"),
       ),
-      vscode.commands.registerCommand("gitless.views.grouped.tags", () =>
+      vscode.commands.registerCommand(Commands.ShowTags, () =>
         this.setView("tags"),
       ),
-      vscode.commands.registerCommand("gitless.views.grouped.branches", () =>
+      vscode.commands.registerCommand(Commands.ShowBranches, () =>
         this.setView("branches"),
       ),
-      vscode.commands.registerCommand("gitless.views.grouped.remotes", () =>
+      vscode.commands.registerCommand(Commands.ShowRemotes, () =>
         this.setView("remotes"),
       ),
-      vscode.commands.registerCommand("gitless.views.grouped.stashes", () =>
+      vscode.commands.registerCommand(Commands.ShowStashes, () =>
         this.setView("stashes"),
       ),
-      vscode.commands.registerCommand("gitless.views.grouped.worktrees", () =>
+      vscode.commands.registerCommand(Commands.ShowWorktrees, () =>
         this.setView("worktrees"),
       ),
     )
@@ -93,34 +97,16 @@ export class GroupedView implements vscode.Disposable {
     // Register active (no-op) commands for the selected state icons
     const noop = () => {}
     this.disposables.push(
-      vscode.commands.registerCommand(
-        "gitless.views.grouped.commits.active",
-        noop,
-      ),
-      vscode.commands.registerCommand(
-        "gitless.views.grouped.tags.active",
-        noop,
-      ),
-      vscode.commands.registerCommand(
-        "gitless.views.grouped.branches.active",
-        noop,
-      ),
-      vscode.commands.registerCommand(
-        "gitless.views.grouped.remotes.active",
-        noop,
-      ),
-      vscode.commands.registerCommand(
-        "gitless.views.grouped.stashes.active",
-        noop,
-      ),
-      vscode.commands.registerCommand(
-        "gitless.views.grouped.worktrees.active",
-        noop,
-      ),
+      vscode.commands.registerCommand(Commands.ShowCommitsActive, noop),
+      vscode.commands.registerCommand(Commands.ShowTagsActive, noop),
+      vscode.commands.registerCommand(Commands.ShowBranchesActive, noop),
+      vscode.commands.registerCommand(Commands.ShowRemotesActive, noop),
+      vscode.commands.registerCommand(Commands.ShowStashesActive, noop),
+      vscode.commands.registerCommand(Commands.ShowWorktreesActive, noop),
     )
 
     // Set initial context
-    this.updateContext()
+    void this.updateViewState()
   }
 
   private get activeView(): SubView {
@@ -130,7 +116,7 @@ export class GroupedView implements vscode.Disposable {
   setView(type: GroupedViewType): void {
     if (this.activeType === type) return
     this.activeType = type
-    this.updateContext()
+    void this.updateViewState()
     this._onDidChangeTreeData.fire()
   }
 
@@ -138,12 +124,25 @@ export class GroupedView implements vscode.Disposable {
     for (const view of Object.values(this.subViews)) {
       view.refresh()
     }
+    void this.updateViewState()
+  }
+
+  private async updateViewState(): Promise<void> {
+    this.updateContext()
+
+    const [repositories, activeRepository] = await Promise.all([
+      this.gitService.getRepositories(),
+      this.gitService.getActiveRepository(),
+    ])
+
+    this.treeView.description =
+      repositories.length > 1 ? activeRepository?.label : undefined
   }
 
   private updateContext(): void {
     vscode.commands.executeCommand(
       "setContext",
-      "gitless:views:scm:grouped:view",
+      GROUPED_VIEW_CONTEXT_KEY,
       this.activeType,
     )
   }

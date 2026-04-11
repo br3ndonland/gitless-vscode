@@ -103,6 +103,8 @@ export interface GitDiff {
 export interface GitRepository {
   path: string
   rootUri: string
+  label: string
+  workspaceFolderName?: string
   headSha?: string
   headBranch?: string
 }

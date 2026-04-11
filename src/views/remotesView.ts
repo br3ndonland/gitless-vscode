@@ -21,19 +21,19 @@ export class RemotesView implements vscode.TreeDataProvider<vscode.TreeItem> {
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
-    const repoPath = await this.gitService.getRepoPath()
+    const repoPath = await this.gitService.getActiveRepoPath()
     if (!repoPath) return [new MessageNode("No repository found")]
 
     if (element instanceof RemoteNode) {
       try {
-        const branches = await this.gitService.getBranches(repoPath)
+        const branches = await this.gitService.getBranches(element.repoPath)
         const remoteBranches = branches.filter(
           (b) => b.remote && b.name.startsWith(`${element.remote.name}/`),
         )
         if (remoteBranches.length === 0) {
           return [new MessageNode("No remote branches")]
         }
-        return remoteBranches.map((b) => new BranchNode(b, repoPath))
+        return remoteBranches.map((b) => new BranchNode(b, element.repoPath))
       } catch {
         return [new MessageNode("Failed to load remote branches")]
       }

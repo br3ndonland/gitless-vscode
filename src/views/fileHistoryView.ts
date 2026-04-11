@@ -10,7 +10,9 @@ export class FileHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
   private treeView: vscode.TreeView<vscode.TreeItem>
+  private activeRepoPath: string | undefined
   private activeFilePath: string | undefined
+  private readonly disposables: vscode.Disposable[] = []
 
   constructor(private readonly gitService: GitService) {
     this.treeView = vscode.window.createTreeView(ViewIds.FileHistory, {
@@ -18,35 +20,14 @@ export class FileHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
       showCollapseAll: true,
     })
 
-    // Track active editor
-    vscode.window.onDidChangeActiveTextEditor((editor) => {
-      if (editor && editor.document.uri.scheme === "file") {
-        const workspaceFolder = vscode.workspace.getWorkspaceFolder(
-          editor.document.uri,
-        )
-        if (workspaceFolder) {
-          this.activeFilePath = vscode.workspace.asRelativePath(
-            editor.document.uri,
-            false,
-          )
-          this.refresh()
-        }
-      }
-    })
+    this.disposables.push(
+      this.treeView,
+      vscode.window.onDidChangeActiveTextEditor(
+        (editor) => void this.updateActiveEditor(editor),
+      ),
+    )
 
-    // Initialize with current editor
-    const editor = vscode.window.activeTextEditor
-    if (editor && editor.document.uri.scheme === "file") {
-      const workspaceFolder = vscode.workspace.getWorkspaceFolder(
-        editor.document.uri,
-      )
-      if (workspaceFolder) {
-        this.activeFilePath = vscode.workspace.asRelativePath(
-          editor.document.uri,
-          false,
-        )
-      }
-    }
+    void this.updateActiveEditor(vscode.window.activeTextEditor)
   }
 
   refresh(): void {
@@ -58,8 +39,7 @@ export class FileHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
-    const repoPath = await this.gitService.getRepoPath()
-    if (!repoPath) return [new MessageNode("No repository found")]
+    if (!this.activeRepoPath) return [new MessageNode("No repository found")]
 
     if (!this.activeFilePath) {
       return [new MessageNode("Open a file to see its history")]
@@ -68,10 +48,10 @@ export class FileHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
     if (element instanceof CommitNode) {
       try {
         const files = await this.gitService.getCommitFiles(
-          repoPath,
+          element.repoPath,
           element.sha,
         )
-        return files.map((f) => new FileNode(f, element.sha, repoPath))
+        return files.map((f) => new FileNode(f, element.sha, element.repoPath))
       } catch {
         return [new MessageNode("Failed to load files")]
       }
@@ -80,14 +60,14 @@ export class FileHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
     if (!element) {
       try {
         const commits = await this.gitService.getFileHistory(
-          repoPath,
+          this.activeRepoPath,
           this.activeFilePath,
         )
         if (commits.length === 0) {
           return [new MessageNode("No history found")]
         }
         this.treeView.description = this.activeFilePath
-        return commits.map((c) => new CommitNode(c, repoPath))
+        return commits.map((c) => new CommitNode(c, this.activeRepoPath!))
       } catch {
         return [new MessageNode("Failed to load file history")]
       }
@@ -97,7 +77,22 @@ export class FileHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
   }
 
   dispose(): void {
-    this.treeView.dispose()
+    this.disposables.forEach((d) => d.dispose())
     this._onDidChangeTreeData.dispose()
+  }
+
+  private async updateActiveEditor(
+    editor: vscode.TextEditor | undefined,
+  ): Promise<void> {
+    if (!editor || editor.document.uri.scheme !== "file") return
+
+    const fileContext = await this.gitService.getRepoFileContext(
+      editor.document.uri,
+    )
+    if (!fileContext) return
+
+    this.activeRepoPath = fileContext.repoPath
+    this.activeFilePath = fileContext.relativePath
+    this.refresh()
   }
 }

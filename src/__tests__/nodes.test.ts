@@ -176,6 +176,14 @@ suite("Nodes", () => {
         assert.deepStrictEqual(args, [{ sha: TEST_SHA }])
       })
 
+      test("should encode repoPath in Open on remote arguments", () => {
+        const node = new CommitNode(makeCommit(), REPO_PATH)
+        const value = tooltipValue(node.tooltip)!
+        const args = decodeCommandArgs(value, Commands.OpenCommitOnRemote)
+        assert.ok(args, "should have decodable OpenCommitOnRemote args")
+        assert.deepStrictEqual(args, [{ sha: TEST_SHA, repoPath: REPO_PATH }])
+      })
+
       test("should include title attributes on command links", () => {
         const node = new CommitNode(makeCommit(), REPO_PATH)
         const value = tooltipValue(node.tooltip)!
@@ -326,6 +334,11 @@ suite("Nodes", () => {
           "gitDecoration.addedResourceForeground",
         )
       })
+
+      test("should include repoPath in the node id", () => {
+        const node = new CommitNode(makeCommit(), REPO_PATH)
+        assert.strictEqual(node.id, `commit:${REPO_PATH}:${TEST_SHA}`)
+      })
     })
   })
 
@@ -374,6 +387,15 @@ suite("Nodes", () => {
         assert.deepStrictEqual(args, [
           { sha: TEST_SHA, filePath: "src/app.ts", repoPath: REPO_PATH },
         ])
+      })
+
+      test("should include repoPath in the node id", () => {
+        const node = new FileNode(
+          makeFile({ path: "src/app.ts" }),
+          TEST_SHA,
+          REPO_PATH,
+        )
+        assert.strictEqual(node.id, `file:${REPO_PATH}:${TEST_SHA}:src/app.ts`)
       })
 
       test("should include title attributes on command links", () => {
@@ -467,6 +489,11 @@ suite("Nodes", () => {
         const args = decodeCommandArgs(value, Commands.CompareWithHead)
         assert.ok(args, "should have decodable CompareWithHead args")
         assert.deepStrictEqual(args, [{ sha: TEST_SHA, repoPath: REPO_PATH }])
+      })
+
+      test("should include repoPath in the node id", () => {
+        const node = new BranchNode(makeBranch(), REPO_PATH)
+        assert.strictEqual(node.id, `branch:${REPO_PATH}:main`)
       })
 
       test("should NOT contain Compare link when SHA is absent", () => {

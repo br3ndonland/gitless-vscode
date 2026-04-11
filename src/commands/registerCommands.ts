@@ -35,20 +35,26 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   }
 
   // Helper: get current file info from active editor
-  function getActiveFileInfo():
+  async function getActiveFileInfo(): Promise<
     | {
         uri: vscode.Uri
+        repoPath: string
         relativePath: string | undefined
       }
-    | undefined {
+    | undefined
+  > {
     const editor = vscode.window.activeTextEditor
     if (!editor) return undefined
     const uri = editor.document.uri
-    const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri)
-    const relativePath = workspaceFolder
-      ? vscode.workspace.asRelativePath(uri, false)
-      : undefined
-    return { uri, relativePath }
+    const fileContext = await gitService.getRepoFileContext(uri)
+    if (!fileContext) return undefined
+    return { uri, ...fileContext }
+  }
+
+  async function getRepoPath(
+    node?: { repoPath?: string } | undefined,
+  ): Promise<string | undefined> {
+    return node?.repoPath ?? (await gitService.getActiveRepoPath())
   }
 
   // Helper: copy to clipboard and show message (status bar, auto-dismisses)
@@ -107,8 +113,33 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
   // ── Command Palette Commands ──
 
-  register(Commands.CopyRemoteRepoUrl, async () => {
-    const repoPath = await gitService.getRepoPath()
+  register(Commands.SelectRepository, async () => {
+    const repositories = await gitService.getRepositories()
+    if (repositories.length === 0) return
+
+    const activeRepository = await gitService.getActiveRepository()
+    const picked = await vscode.window.showQuickPick(
+      repositories.map((repo) => ({
+        label: repo.label,
+        description:
+          repo.workspaceFolderName && repo.workspaceFolderName !== repo.label
+            ? repo.workspaceFolderName
+            : undefined,
+        detail: repo.path,
+        repoPath: repo.path,
+      })),
+      {
+        placeHolder: "Select a repository",
+      },
+    )
+    if (!picked || picked.repoPath === activeRepository?.path) return
+
+    await gitService.setActiveRepository(picked.repoPath)
+  })
+
+  register(Commands.CopyRemoteRepoUrl, async (...args: unknown[]) => {
+    const node = args[0] as { repoPath?: string } | undefined
+    const repoPath = await getRepoPath(node)
     if (!repoPath) return
 
     const remote = await getPreferredRemote(repoPath)
@@ -122,27 +153,28 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   })
 
   register(Commands.CopyRemoteFileUrl, async (...args: unknown[]) => {
-    const repoPath = await gitService.getRepoPath()
-    if (!repoPath) return
-
     // Check if called from tree view context
     const node = args[0] as
       | { sha?: string; filePath?: string; repoPath?: string }
       | undefined
     let filePath: string | undefined
+    let repoPath: string | undefined
     let ref: string | undefined
 
     if (node?.filePath) {
       filePath = node.filePath
+      repoPath = await getRepoPath(node)
       ref = undefined // use HEAD branch
     } else {
-      const fileInfo = getActiveFileInfo()
+      const fileInfo = await getActiveFileInfo()
       if (!fileInfo?.relativePath) {
         vscode.window.showWarningMessage("No file is currently open")
         return
       }
+      repoPath = fileInfo.repoPath
       filePath = fileInfo.relativePath
     }
+    if (!repoPath) return
 
     const remote = await getPreferredRemote(repoPath)
     if (!remote?.provider) {
@@ -160,10 +192,10 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   })
 
   register(Commands.CopyRemoteFileUrlFrom, async () => {
-    const repoPath = await gitService.getRepoPath()
+    const fileInfo = await getActiveFileInfo()
+    const repoPath = fileInfo?.repoPath
     if (!repoPath) return
 
-    const fileInfo = getActiveFileInfo()
     if (!fileInfo?.relativePath) {
       vscode.window.showWarningMessage("No file is currently open")
       return
@@ -202,10 +234,10 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   })
 
   register(Commands.CopyRemoteCommitUrl, async (...args: unknown[]) => {
-    const repoPath = await gitService.getRepoPath()
+    const node = args[0] as { sha?: string; repoPath?: string } | undefined
+    const repoPath = await getRepoPath(node)
     if (!repoPath) return
 
-    const node = args[0] as { sha?: string } | undefined
     const sha = node?.sha ?? (await gitService.getHeadSha(repoPath))
 
     const remote = await getPreferredRemote(repoPath)
@@ -219,7 +251,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   })
 
   register(Commands.CopyRemoteCommitUrlFrom, async () => {
-    const repoPath = await gitService.getRepoPath()
+    const repoPath = await gitService.getActiveRepoPath()
     if (!repoPath) return
 
     const remote = await pickRemote(repoPath)
@@ -231,19 +263,19 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   })
 
   register(Commands.CopySha, async (...args: unknown[]) => {
-    const repoPath = await gitService.getRepoPath()
+    const node = args[0] as { sha?: string; repoPath?: string } | undefined
+    const repoPath = await getRepoPath(node)
     if (!repoPath) return
 
-    const node = args[0] as { sha?: string } | undefined
     const sha = node?.sha ?? (await gitService.getHeadSha(repoPath))
     await copyToClipboard(sha, "SHA")
   })
 
   register(Commands.CopyShortSha, async (...args: unknown[]) => {
-    const repoPath = await gitService.getRepoPath()
+    const node = args[0] as { sha?: string; repoPath?: string } | undefined
+    const repoPath = await getRepoPath(node)
     if (!repoPath) return
 
-    const node = args[0] as { sha?: string } | undefined
     const sha = node?.sha ?? (await gitService.getHeadSha(repoPath))
     await copyToClipboard(shortenSha(sha), "short SHA")
   })
@@ -331,13 +363,12 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
       repoPath = node.repoPath
       sha = node.sha
     } else {
-      repoPath = await gitService.getRepoPath()
-      if (!repoPath) return
-      const fileInfo = getActiveFileInfo()
+      const fileInfo = await getActiveFileInfo()
       if (!fileInfo?.relativePath) {
         vscode.window.showWarningMessage("No file is currently open")
         return
       }
+      repoPath = fileInfo.repoPath
       filePath = fileInfo.relativePath
     }
 
@@ -360,10 +391,10 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   })
 
   register(Commands.OpenCommitOnRemote, async (...args: unknown[]) => {
-    const repoPath = await gitService.getRepoPath()
+    const node = args[0] as { sha?: string; repoPath?: string } | undefined
+    const repoPath = await getRepoPath(node)
     if (!repoPath) return
 
-    const node = args[0] as { sha?: string } | undefined
     const sha = node?.sha ?? (await gitService.getHeadSha(repoPath))
 
     const remote = await getPreferredRemote(repoPath)
@@ -532,7 +563,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
       | undefined
     if (!node?.sha || !node?.filePath) return
 
-    const repoPath = node.repoPath ?? (await gitService.getRepoPath())
+    const repoPath = await getRepoPath(node)
     if (!repoPath) return
 
     const remote = await getPreferredRemote(repoPath)
@@ -554,7 +585,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
       | { sha?: string; filePath?: string; repoPath?: string }
       | undefined
 
-    const repoPath = node?.repoPath ?? (await gitService.getRepoPath())
+    const repoPath = await getRepoPath(node)
     if (!repoPath) return
 
     const sha = node?.sha ?? (await gitService.getHeadSha(repoPath))
@@ -577,7 +608,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
         | undefined
       if (!node?.sha || !node?.filePath) return
 
-      const repoPath = node.repoPath ?? (await gitService.getRepoPath())
+      const repoPath = await getRepoPath(node)
       if (!repoPath) return
 
       const remote = await getPreferredRemote(repoPath)
