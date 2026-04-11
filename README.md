@@ -3,9 +3,17 @@
 [![Open VSX Version](https://img.shields.io/open-vsx/v/br3ndonland/gitless-vscode?style=flat-square&color=%23C160EF)](https://open-vsx.org/extension/br3ndonland/gitless-vscode)
 [![VSCode marketplace](https://img.shields.io/badge/br3ndonland.gitless-vscode?style=flat-square&label=vscode&color=blue)](https://marketplace.visualstudio.com/items?itemName=br3ndonland.gitless-vscode)
 
-Git in VSCode with less bloat.
+_Git in VSCode with less bloat._
 
 GitLess is a minimal VSCode extension for Git integration. The built-in Git features don't do enough, but other extensions do too much. GitLess provides a focused set of features for everyday Git workflows.
+
+What GitLess _does not_ do:
+
+- GitLess does not collect telemetry.
+- GitLess does not expire extension versions or disable functionality until you update.
+- GitLess does not require a separate account, subscription, or cloud service.
+- GitLess does not turn your Source Control panel into a full workflow dashboard.
+- GitLess does not run heavyweight background services just to show Git history.
 
 ## Features
 
