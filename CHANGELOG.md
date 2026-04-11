@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/br3ndonland/gitless-vscode/compare/0.4.0...0.4.1) (2026-04-11)
+
+### Bug Fixes
+
+- discover workspace child repos ([613ae3c](https://github.com/br3ndonland/gitless-vscode/commit/613ae3c9141f6ccbe9997a250f0d2b249fdf5c3c))
+- show files in stash tree ([39282f3](https://github.com/br3ndonland/gitless-vscode/commit/39282f30288c236f9a4218c121bd54b37c3aa035))
+
 # [0.4.0](https://github.com/br3ndonland/gitless-vscode/compare/0.3.2...0.4.0) (2026-04-11)
 
 ### Features
