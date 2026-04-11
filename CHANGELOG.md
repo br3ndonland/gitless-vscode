@@ -1,5 +1,11 @@
 # Changelog
 
+# [0.4.0](https://github.com/br3ndonland/gitless-vscode/compare/0.3.2...0.4.0) (2026-04-11)
+
+### Features
+
+- add multi-repo workspace support ([7ffb0d3](https://github.com/br3ndonland/gitless-vscode/commit/7ffb0d33607e4711041352585f6231da90528dd3))
+
 ## [0.3.2](https://github.com/br3ndonland/gitless-vscode/compare/0.3.1...0.3.2) (2026-04-08)
 
 ### Bug Fixes
