@@ -92,18 +92,36 @@ GitLess generates correct URLs for:
 
 ## Configuration
 
-| Setting                                      | Default      | Description                            |
-| -------------------------------------------- | ------------ | -------------------------------------- |
-| `gitless.shortShaLength`                     | `7`          | Length of short commit SHAs (5 - 40)   |
-| `gitless.repositoryScanMaxDepth`             | `1`          | Repository scan depth (`-1` unlimited) |
-| `gitless.views.commits.showBranchComparison` | `true`       | Show branch comparison in Commits view |
-| `gitless.defaultDateFormat`                  | `null`       | Date format (dayjs tokens)             |
-| `gitless.defaultDateStyle`                   | `"relative"` | Date style: `relative` or `absolute`   |
-| `gitless.views.branches.layout`              | `"tree"`     | Branch view layout: `list` or `tree`   |
+Available settings:
 
-`gitless.repositoryScanMaxDepth` is equivalent to VS Code Git's
-`git.repositoryScanMaxDepth`. For the best multi-repo workspace experience, set
-both settings to the same number.
+| Setting                                      | Default      | Description                                                                     |
+| -------------------------------------------- | ------------ | ------------------------------------------------------------------------------- |
+| `gitless.shortShaLength`                     | `7`          | Length of short commit SHAs (5 - 40)                                            |
+| `gitless.repositoryScanMaxDepth`             | `1`          | Depth used when scanning workspace folders for Git repositories (`-1` no limit) |
+| `gitless.views.commits.showBranchComparison` | `true`       | Show branch comparison in Commits view                                          |
+| `gitless.defaultDateFormat`                  | `null`       | Date format (dayjs tokens)                                                      |
+| `gitless.defaultDateStyle`                   | `"relative"` | Date style: `relative` or `absolute`                                            |
+| `gitless.views.branches.layout`              | `"tree"`     | Branch view layout: `list` or `tree`                                            |
+
+Notes:
+
+- `gitless.defaultDateFormat` uses [dayjs format tokens](https://day.js.org/docs/en/display/format).
+  - `YYYY-MM-DD` renders `2026-04-11`.
+  - `MMM D, YYYY` renders `Apr 11, 2026`.
+  - `YYYY-MM-DD HH:mm` renders `2026-04-11 14:30`.
+  - `null` will use the default date formatting.
+- `gitless.repositoryScanMaxDepth` controls how many levels of subdirectories GitLess traverses when scanning workspace folders for Git repositories. Equivalent to `git.repositoryScanMaxDepth`. For the best multi-repo workspace experience, set both `git.repositoryScanMaxDepth` and `gitless.repositoryScanMaxDepth` to the same number.
+
+Set custom values in your VS Code `settings.json`:
+
+```jsonc
+{
+  "gitless.defaultDateFormat": "YYYY-MM-DD HH:mm",
+  "gitless.defaultDateStyle": "absolute",
+  "gitless.repositoryScanMaxDepth": 5,
+  "git.repositoryScanMaxDepth": 5,
+}
+```
 
 ## Development
 
