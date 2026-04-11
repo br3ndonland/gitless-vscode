@@ -19,28 +19,33 @@ What GitLess _does not_ do:
 
 ### Command Palette
 
-Access these commands from the VSCode command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
+Access common commands from the VSCode command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 
-| Command                              | Description                                    |
-| ------------------------------------ | ---------------------------------------------- |
-| GitLess: Copy link to repository     | Copy the remote repository URL                 |
-| GitLess: Copy remote file URL        | Copy the URL of the current file on the remote |
-| GitLess: Copy remote file URL from   | Copy the file URL for a specific branch or tag |
-| GitLess: Copy remote commit URL      | Copy the URL of the current commit             |
-| GitLess: Copy remote commit URL from | Copy the commit URL from a specific remote     |
-| GitLess: Copy SHA                    | Copy the full commit SHA                       |
-| GitLess: Copy short SHA              | Copy the short commit SHA                      |
+| Command                              | Description                                           |
+| ------------------------------------ | ----------------------------------------------------- |
+| GitLess: Copy link to repository     | Copy the remote repository URL                        |
+| GitLess: Copy remote file URL        | Copy the URL of the current file on the remote        |
+| GitLess: Copy remote file URL from   | Copy the file URL for a specific branch or tag        |
+| GitLess: Copy remote commit URL      | Copy the URL of the current commit                    |
+| GitLess: Copy remote commit URL from | Copy the commit URL from a specific remote            |
+| GitLess: Copy SHA                    | Copy the full commit SHA                              |
+| GitLess: Copy short SHA              | Copy the short commit SHA                             |
+| GitLess: Open file on remote         | Open the current file on the remote                   |
+| GitLess: Open commit on remote       | Open the current commit on the remote                 |
+| GitLess: Select Repository           | Switch the active repository in multi-repo workspaces |
+| GitLess: Search Commits              | Search commits by message, author, file, or changes   |
+| GitLess: Compare References          | Compare branches, tags, or refs                       |
 
 ### Source Control Panel
 
 GitLess adds a grouped section to the Source Control panel with toggle buttons to switch between views:
 
 - **Commits** - Browse the commit history with expandable file trees
-- **Branches** - View local and remote branches
-- **Remotes** - Inspect configured remotes and their branches
-- **Stashes** - Manage stashed changes
 - **Tags** - Browse tags and their associated commits
-- **Worktrees** - View and manage Git worktrees
+- **Branches** - View local and remote branches and inspect recent commits
+- **Remotes** - Inspect configured remotes and remote branches
+- **Stashes** - Inspect stashed changes
+- **Worktrees** - View Git worktrees and inspect recent commits
 
 #### Commit Hover Actions
 
@@ -57,11 +62,11 @@ Hover over a commit to reveal inline buttons:
 
 Expand a commit to see its files, then hover for inline buttons:
 
-| Button                | Action                       | Alt/Option Action          |
-| --------------------- | ---------------------------- | -------------------------- |
-| Open file at revision | Open the file at this commit | Open the working tree file |
-| Open changes          | Diff against working file    |                            |
-| Open file on remote   | Open the file on the web     | Copy the remote file URL   |
+| Button                | Action                       | Alt/Option Action              |
+| --------------------- | ---------------------------- | ------------------------------ |
+| Open file at revision | Open the file at this commit | Open the working tree file     |
+| Open changes          | Diff against working file    | Open changes with working file |
+| Open file on remote   | Open the file on the web     | Copy the remote file URL       |
 
 #### Tag Hover Actions
 
@@ -74,11 +79,12 @@ Expand a commit to see its files, then hover for inline buttons:
 
 Right-click on items for additional actions:
 
-- **Commits**: Copy SHA, Copy message, Share > Copy remote commit URL
-- **Files**: Share > Copy link to commit, Copy link to file, Copy link at revision
+- **Commits**: Copy SHA, Copy short SHA, Copy message, Share > Copy remote commit URL
+- **Files**: Share > Copy link to commit, Copy link to commit at revision, Copy remote file URL, Copy remote file URL at revision
 - **Tags**: Copy tag name, Copy tag message
-- **Branches**: Copy branch name, Share > Copy remote branch URL
-- **Stashes**: Apply stash, Drop stash, Copy stash message
+- **Branches**: Compare with HEAD, Share > Copy link to repository
+- **Stashes**: Copy SHA, Copy message
+- **Remotes**: Copy link to repository, Open current file on remote
 
 ### GitLess Inspect Panel
 
@@ -86,7 +92,7 @@ The GitLess Inspect sidebar panel provides:
 
 - **File History** - View the commit history of the active file
 - **Line History** - View the commit history of selected lines
-- **Search & Compare** - Search commits by message or compare two refs
+- **Search and Compare** - Search commits by message, author, file, or changes; compare branches, tags, or refs
 
 ### Remote Provider Support
 
@@ -107,13 +113,13 @@ Available settings:
 | `gitless.shortShaLength`                     | `7`          | Length of short commit SHAs (5 - 40)                                            |
 | `gitless.repositoryScanMaxDepth`             | `1`          | Depth used when scanning workspace folders for Git repositories (`-1` no limit) |
 | `gitless.views.commits.showBranchComparison` | `true`       | Show branch comparison in Commits view                                          |
-| `gitless.defaultDateFormat`                  | `null`       | Date format (dayjs tokens)                                                      |
+| `gitless.defaultDateFormat`                  | `null`       | Date format (Day.js format tokens)                                              |
 | `gitless.defaultDateStyle`                   | `"relative"` | Date style: `relative` or `absolute`                                            |
 | `gitless.views.branches.layout`              | `"tree"`     | Branch view layout: `list` or `tree`                                            |
 
 Notes:
 
-- `gitless.defaultDateFormat` uses [dayjs format tokens](https://day.js.org/docs/en/display/format).
+- `gitless.defaultDateFormat` uses [Day.js format tokens](https://day.js.org/docs/en/display/format).
   - `YYYY-MM-DD` renders `2026-04-11`.
   - `MMM D, YYYY` renders `Apr 11, 2026`.
   - `YYYY-MM-DD HH:mm` renders `2026-04-11 14:30`.
