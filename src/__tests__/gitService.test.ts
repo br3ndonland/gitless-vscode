@@ -7,6 +7,20 @@ const REPO_A = "/workspace/repo-a"
 const REPO_A_NESTED = "/workspace/repo-a/packages/pkg-a"
 const REPO_B = "/workspace/repo-b"
 const NON_GIT = "/workspace/not-git"
+const MULTI_REPO = "/workspace/multi-repo"
+const FASTENV = `${MULTI_REPO}/fastenv`
+const TEMPLATE_PYTHON = `${MULTI_REPO}/template-python`
+const SCAN_DEPTH_ROOT = "/workspace/scan-depth"
+const SCAN_DEPTH_REPOS = [
+  `${SCAN_DEPTH_ROOT}/repo-depth-1`,
+  `${SCAN_DEPTH_ROOT}/level-1/repo-depth-2`,
+  `${SCAN_DEPTH_ROOT}/level-1/level-2/repo-depth-3`,
+  `${SCAN_DEPTH_ROOT}/level-1/level-2/level-3/repo-depth-4`,
+  `${SCAN_DEPTH_ROOT}/level-1/level-2/level-3/level-4/repo-depth-5`,
+]
+const SCAN_DEPTH_GIT_MARKERS = SCAN_DEPTH_REPOS.map(
+  (repoPath) => `${repoPath}/.git/HEAD`,
+)
 
 type GitExecArgs = readonly string[]
 
@@ -14,6 +28,8 @@ interface CommandsStub {
   calls: Array<{ command: string; args: unknown[] }>
   executeCommand(command: string, ...args: unknown[]): Promise<void>
 }
+
+type ConfigStub = <T>(key: string) => T | undefined
 
 function createCommandsStub(): CommandsStub {
   return {
@@ -52,7 +68,10 @@ function createWindowStub(initialFilePath?: string) {
   }
 }
 
-function createWorkspaceStub(folderPaths: string[]) {
+function createWorkspaceStub(
+  folderPaths: string[],
+  gitMarkerPaths: string[] = [],
+) {
   let workspaceFolders = folderPaths.map((folderPath, index) => ({
     uri: vscode.Uri.file(folderPath),
     name: folderPath.split("/").pop() ?? folderPath,
@@ -76,6 +95,9 @@ function createWorkspaceStub(folderPaths: string[]) {
           dispose: () => {},
         } as unknown as vscode.FileSystemWatcher
       },
+      findFiles(include: vscode.GlobPattern): Promise<vscode.Uri[]> {
+        return Promise.resolve(findMatchingGitMarkers(include, gitMarkerPaths))
+      },
       onDidChangeWorkspaceFolders(
         listener: (event: vscode.WorkspaceFoldersChangeEvent) => unknown,
       ): vscode.Disposable {
@@ -95,6 +117,10 @@ function createWorkspaceStub(folderPaths: string[]) {
       }
     },
   }
+}
+
+function createConfigStub(values: Record<string, unknown> = {}): ConfigStub {
+  return <T>(key: string): T | undefined => values[key] as T | undefined
 }
 
 function makeTextEditor(filePath: string): vscode.TextEditor {
@@ -136,6 +162,34 @@ async function gitExecStub(
 function getRepositoryForPath(
   fsPath: string,
 ): { rootPath: string; headSha: string; headBranch: string } | undefined {
+  const scanDepthRepoIndex = SCAN_DEPTH_REPOS.findIndex((repoPath) =>
+    isInside(repoPath, fsPath),
+  )
+  if (scanDepthRepoIndex >= 0) {
+    const index = scanDepthRepoIndex + 1
+    return {
+      rootPath: SCAN_DEPTH_REPOS[scanDepthRepoIndex]!,
+      headSha: `${index}`.repeat(40),
+      headBranch: "main",
+    }
+  }
+
+  if (isInside(FASTENV, fsPath)) {
+    return {
+      rootPath: FASTENV,
+      headSha: "ffffffffffffffffffffffffffffffffffffffff",
+      headBranch: "main",
+    }
+  }
+
+  if (isInside(TEMPLATE_PYTHON, fsPath)) {
+    return {
+      rootPath: TEMPLATE_PYTHON,
+      headSha: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      headBranch: "main",
+    }
+  }
+
   if (isInside(REPO_A, fsPath)) {
     return {
       rootPath: REPO_A,
@@ -157,6 +211,46 @@ function getRepositoryForPath(
 
 function isInside(basePath: string, candidatePath: string): boolean {
   return candidatePath === basePath || candidatePath.startsWith(`${basePath}/`)
+}
+
+function findMatchingGitMarkers(
+  include: vscode.GlobPattern,
+  gitMarkerPaths: string[],
+): vscode.Uri[] {
+  if (!(include instanceof vscode.RelativePattern)) return []
+
+  return gitMarkerPaths
+    .filter((markerPath) => isInside(include.baseUri.fsPath, markerPath))
+    .filter((markerPath) => {
+      const relativePath = normalizePath(
+        pathRelative(include.baseUri.fsPath, markerPath),
+      )
+
+      return matchGitMarkerPattern(relativePath, include.pattern)
+    })
+    .map((markerPath) => vscode.Uri.file(markerPath))
+}
+
+function matchGitMarkerPattern(relativePath: string, pattern: string): boolean {
+  if (pattern === "**/.git") return relativePath.endsWith("/.git")
+  if (pattern === "**/.git/HEAD") return relativePath.endsWith("/.git/HEAD")
+
+  const relativeParts = relativePath.split("/")
+  const patternParts = pattern.split("/")
+  if (relativeParts.length !== patternParts.length) return false
+
+  return patternParts.every((patternPart, index) => {
+    const relativePart = relativeParts[index]
+    return patternPart === "*" || patternPart === relativePart
+  })
+}
+
+function pathRelative(basePath: string, candidatePath: string): string {
+  return candidatePath.slice(basePath.length + 1)
+}
+
+function normalizePath(filePath: string): string {
+  return filePath.replace(/\\/g, "/")
 }
 
 suite("GitService", () => {
@@ -197,6 +291,139 @@ suite("GitService", () => {
 
     service.dispose()
   })
+
+  test("should discover child repositories from a non-git workspace folder", async () => {
+    const workspace = createWorkspaceStub(
+      [MULTI_REPO],
+      [`${FASTENV}/.git/HEAD`, `${TEMPLATE_PYTHON}/.git/HEAD`],
+    )
+    const window = createWindowStub()
+    const commands = createCommandsStub()
+    const service = new GitService({
+      gitExec: gitExecStub,
+      workspace: workspace.stub,
+      window: window.stub,
+      commands,
+    })
+
+    const repositories = await service.getRepositories()
+
+    assert.deepStrictEqual(
+      repositories.map((repository) => repository.path),
+      [FASTENV, TEMPLATE_PYTHON],
+    )
+    assert.deepStrictEqual(
+      repositories.map((repository) => repository.label),
+      ["fastenv", "template-python"],
+    )
+    assert.ok(
+      commands.calls.some(
+        (call) =>
+          call.command === "setContext" &&
+          call.args[0] === "gitless:repositories:multiple" &&
+          call.args[1] === true,
+      ),
+    )
+
+    service.dispose()
+  })
+
+  test("should use the active editor repo from child discovery", async () => {
+    const workspace = createWorkspaceStub(
+      [MULTI_REPO],
+      [`${FASTENV}/.git/HEAD`, `${TEMPLATE_PYTHON}/.git/HEAD`],
+    )
+    const window = createWindowStub(`${TEMPLATE_PYTHON}/src/index.py`)
+    const service = new GitService({
+      gitExec: gitExecStub,
+      workspace: workspace.stub,
+      window: window.stub,
+      commands: createCommandsStub(),
+    })
+
+    const activeRepository = await service.getActiveRepository()
+
+    assert.strictEqual(activeRepository?.path, TEMPLATE_PYTHON)
+    assert.strictEqual(activeRepository?.label, "template-python")
+
+    service.dispose()
+  })
+
+  test("should dedupe child and direct workspace repositories", async () => {
+    const workspace = createWorkspaceStub(
+      [MULTI_REPO, FASTENV],
+      [`${FASTENV}/.git/HEAD`],
+    )
+    const service = new GitService({
+      gitExec: gitExecStub,
+      workspace: workspace.stub,
+      window: createWindowStub().stub,
+      commands: createCommandsStub(),
+    })
+
+    const repositories = await service.getRepositories()
+
+    assert.deepStrictEqual(
+      repositories.map((repository) => repository.path),
+      [FASTENV],
+    )
+
+    service.dispose()
+  })
+
+  test("should discover child repositories from git file markers", async () => {
+    const workspace = createWorkspaceStub([MULTI_REPO], [`${FASTENV}/.git`])
+    const service = new GitService({
+      gitExec: gitExecStub,
+      workspace: workspace.stub,
+      window: createWindowStub().stub,
+      commands: createCommandsStub(),
+    })
+
+    const repositories = await service.getRepositories()
+
+    assert.deepStrictEqual(
+      repositories.map((repository) => repository.path),
+      [FASTENV],
+    )
+
+    service.dispose()
+  })
+
+  for (const { label, configuredDepth, expectedDepth } of [
+    { label: "default depth", configuredDepth: undefined, expectedDepth: 1 },
+    { label: "depth 2", configuredDepth: 2, expectedDepth: 2 },
+    { label: "depth 3", configuredDepth: 3, expectedDepth: 3 },
+    { label: "depth 4", configuredDepth: 4, expectedDepth: 4 },
+    { label: "depth 5", configuredDepth: 5, expectedDepth: 5 },
+  ]) {
+    test(`should discover repositories at ${label}`, async () => {
+      const workspace = createWorkspaceStub(
+        [SCAN_DEPTH_ROOT],
+        SCAN_DEPTH_GIT_MARKERS,
+      )
+      const configValues =
+        configuredDepth === undefined
+          ? {}
+          : { repositoryScanMaxDepth: configuredDepth }
+      const service = new GitService({
+        gitExec: gitExecStub,
+        getConfig: createConfigStub(configValues),
+        workspace: workspace.stub,
+        window: createWindowStub().stub,
+        commands: createCommandsStub(),
+      })
+
+      const repositories = await service.getRepositories()
+
+      assert.deepStrictEqual(
+        repositories.map((repository) => repository.path),
+        SCAN_DEPTH_REPOS.slice(0, expectedDepth),
+      )
+
+      service.dispose()
+    })
+  }
 
   test("should use the active editor repo as the initial active repository", async () => {
     const workspace = createWorkspaceStub([REPO_A, REPO_B])

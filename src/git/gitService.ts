@@ -22,12 +22,22 @@ import type {
   GitFile,
   GitRepository,
 } from "./models"
+import { getConfig as defaultGetConfig } from "../config"
 
 type GitExecFn = typeof defaultGitExec
+type GetConfigFn = typeof defaultGetConfig
+const MAX_REPOSITORY_MARKER_RESULTS = 1000
 
 interface GitServiceWorkspaceLike {
   workspaceFolders: readonly vscode.WorkspaceFolder[] | undefined
-  createFileSystemWatcher(globPattern: string): vscode.FileSystemWatcher
+  createFileSystemWatcher(
+    globPattern: vscode.GlobPattern,
+  ): vscode.FileSystemWatcher
+  findFiles(
+    include: vscode.GlobPattern,
+    exclude?: vscode.GlobPattern | null,
+    maxResults?: number,
+  ): Thenable<vscode.Uri[]>
   onDidChangeWorkspaceFolders(
     listener: (e: vscode.WorkspaceFoldersChangeEvent) => unknown,
   ): vscode.Disposable
@@ -46,6 +56,7 @@ interface GitServiceCommandsLike {
 
 interface GitServiceDependencies {
   gitExec?: GitExecFn
+  getConfig?: GetConfigFn
   workspace?: GitServiceWorkspaceLike
   window?: GitServiceWindowLike
   commands?: GitServiceCommandsLike
@@ -53,6 +64,7 @@ interface GitServiceDependencies {
 
 export class GitService implements vscode.Disposable {
   private readonly gitExec: GitExecFn
+  private readonly getConfig: GetConfigFn
   private readonly workspace: GitServiceWorkspaceLike
   private readonly window: GitServiceWindowLike
   private readonly commands: GitServiceCommandsLike
@@ -69,15 +81,18 @@ export class GitService implements vscode.Disposable {
 
   constructor(dependencies: GitServiceDependencies = {}) {
     this.gitExec = dependencies.gitExec ?? defaultGitExec
+    this.getConfig = dependencies.getConfig ?? defaultGetConfig
     this.workspace = dependencies.workspace ?? vscode.workspace
     this.window = dependencies.window ?? vscode.window
     this.commands = dependencies.commands ?? vscode.commands
 
-    const watcher = this.workspace.createFileSystemWatcher("**/.git/**")
-    watcher.onDidChange(() => void this.refreshRepositories(true))
-    watcher.onDidCreate(() => void this.refreshRepositories(true))
-    watcher.onDidDelete(() => void this.refreshRepositories(true))
-    this._disposables.push(watcher)
+    for (const pattern of ["**/.git/**", "**/.git"]) {
+      const watcher = this.workspace.createFileSystemWatcher(pattern)
+      watcher.onDidChange(() => void this.refreshRepositories(true))
+      watcher.onDidCreate(() => void this.refreshRepositories(true))
+      watcher.onDidDelete(() => void this.refreshRepositories(true))
+      this._disposables.push(watcher)
+    }
 
     this._disposables.push(
       this.workspace.onDidChangeWorkspaceFolders(
@@ -455,14 +470,25 @@ export class GitService implements vscode.Disposable {
     const workspaceFolders = this.workspace.workspaceFolders
     if (!workspaceFolders?.length) return []
 
-    const candidates = await Promise.all(
-      workspaceFolders.map((folder) =>
-        this.resolveRepositoryFromFsPath(folder.uri.fsPath, folder.name),
+    const candidates = (
+      await Promise.all(
+        workspaceFolders.map((folder) =>
+          this.discoverRepositoryCandidates(folder),
+        ),
+      )
+    ).flat()
+
+    const repositories = await Promise.all(
+      candidates.map((candidate) =>
+        this.resolveRepositoryFromFsPath(
+          candidate.fsPath,
+          candidate.workspaceFolderName,
+        ),
       ),
     )
 
     const repositoriesByPath = new Map<string, GitRepository>()
-    for (const repository of candidates) {
+    for (const repository of repositories) {
       if (!repository) continue
       if (!repositoriesByPath.has(repository.path)) {
         repositoriesByPath.set(repository.path, repository)
@@ -470,6 +496,52 @@ export class GitService implements vscode.Disposable {
     }
 
     return [...repositoriesByPath.values()]
+  }
+
+  private async discoverRepositoryCandidates(
+    folder: vscode.WorkspaceFolder,
+  ): Promise<Array<{ fsPath: string; workspaceFolderName?: string }>> {
+    const candidatePaths = new Set<string>([folder.uri.fsPath])
+
+    const markerUris = await this.findChildGitMarkers(folder)
+    for (const markerUri of markerUris) {
+      const repoPath = getRepositoryPathFromGitMarker(markerUri.fsPath)
+      if (repoPath) candidatePaths.add(repoPath)
+    }
+
+    return [...candidatePaths]
+      .sort(comparePaths)
+      .map((fsPath) => ({ fsPath, workspaceFolderName: folder.name }))
+  }
+
+  private async findChildGitMarkers(
+    folder: vscode.WorkspaceFolder,
+  ): Promise<vscode.Uri[]> {
+    const repositoryScanMaxDepth = this.getRepositoryScanMaxDepth()
+    const markerPatterns = getGitMarkerPatterns(repositoryScanMaxDepth)
+    if (markerPatterns.length === 0) return []
+
+    try {
+      const markerUris = await Promise.all(
+        markerPatterns.map((markerPattern) =>
+          this.workspace.findFiles(
+            new vscode.RelativePattern(folder, markerPattern),
+            null,
+            MAX_REPOSITORY_MARKER_RESULTS,
+          ),
+        ),
+      )
+
+      return markerUris.flat()
+    } catch {
+      return []
+    }
+  }
+
+  private getRepositoryScanMaxDepth(): number {
+    const configured = this.getConfig<number>("repositoryScanMaxDepth")
+    if (configured === undefined || !Number.isFinite(configured)) return 1
+    return Math.trunc(configured)
   }
 
   private async resolveRepositoryFromFsPath(
@@ -606,6 +678,35 @@ function isPathInside(basePath: string, candidatePath: string): boolean {
 
 function normalizeGitPath(filePath: string): string {
   return filePath.replace(/\\/g, "/")
+}
+
+function getRepositoryPathFromGitMarker(
+  markerPath: string,
+): string | undefined {
+  const markerName = path.basename(markerPath)
+  if (markerName === ".git") return path.dirname(markerPath)
+
+  const markerParent = path.dirname(markerPath)
+  if (markerName === "HEAD" && path.basename(markerParent) === ".git") {
+    return path.dirname(markerParent)
+  }
+
+  return undefined
+}
+
+function getGitMarkerPatterns(repositoryScanMaxDepth: number): string[] {
+  if (repositoryScanMaxDepth === -1) return ["**/.git", "**/.git/HEAD"]
+  if (repositoryScanMaxDepth <= 0) return []
+
+  return Array.from({ length: repositoryScanMaxDepth }, (_, index) => {
+    return Array.from({ length: index + 1 }, () => "*").join("/")
+  }).flatMap((prefix) => [`${prefix}/.git`, `${prefix}/.git/HEAD`])
+}
+
+function comparePaths(a: string, b: string): number {
+  if (a < b) return -1
+  if (a > b) return 1
+  return 0
 }
 
 function sameRepositoryPaths(

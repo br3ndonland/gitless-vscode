@@ -675,6 +675,11 @@
           "maximum": 40,
           "markdownDescription": "Specifies the length of short commit SHAs. Minimum 5, maximum 40 (full SHA)."
         },
+        "gitless.repositoryScanMaxDepth": {
+          "type": "number",
+          "default": 1,
+          "markdownDescription": "Controls how many levels of subdirectories GitLess traverses when scanning workspace folders for Git repositories. Equivalent to `git.repositoryScanMaxDepth`. For the best multi-repo workspace experience, set both `git.repositoryScanMaxDepth` and `gitless.repositoryScanMaxDepth` to the same number."
+        },
         "gitless.views.commits.showBranchComparison": {
           "type": "boolean",
           "default": true,

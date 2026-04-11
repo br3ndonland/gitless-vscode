@@ -35,6 +35,7 @@ export class Container implements vscode.Disposable {
     this.disposables.push(
       onConfigurationChanged(() => {
         updateShortShaLength()
+        void this.gitService.refreshRepositories(true)
         this.refreshAllViews()
       }),
     )

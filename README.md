@@ -94,10 +94,15 @@ GitLess generates correct URLs for:
 | Setting                                      | Default      | Description                            |
 | -------------------------------------------- | ------------ | -------------------------------------- |
 | `gitless.shortShaLength`                     | `7`          | Length of short commit SHAs (5 - 40)   |
+| `gitless.repositoryScanMaxDepth`             | `1`          | Repository scan depth (`-1` unlimited) |
 | `gitless.views.commits.showBranchComparison` | `true`       | Show branch comparison in Commits view |
 | `gitless.defaultDateFormat`                  | `null`       | Date format (dayjs tokens)             |
 | `gitless.defaultDateStyle`                   | `"relative"` | Date style: `relative` or `absolute`   |
 | `gitless.views.branches.layout`              | `"tree"`     | Branch view layout: `list` or `tree`   |
+
+`gitless.repositoryScanMaxDepth` is equivalent to VS Code Git's
+`git.repositoryScanMaxDepth`. For the best multi-repo workspace experience, set
+both settings to the same number.
 
 ## Development
 
