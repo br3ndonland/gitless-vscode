@@ -11,7 +11,7 @@ import type {
   GitFileStatus,
 } from "../git/models"
 import { Commands, ContextValues } from "../constants"
-import { shortenSha } from "../config"
+import { formatDate, shortenSha } from "../config"
 
 /** Custom URI scheme used for file nodes to trigger file-icon-theme resolution
  * without conflicting with real workspace file decorations. */
@@ -41,7 +41,7 @@ export abstract class ViewNode extends vscode.TreeItem {
   }
 }
 
-// ── Commit Node ──
+// Commit Node
 
 export class CommitNode extends ViewNode {
   readonly contextValue = ContextValues.Commit
@@ -60,10 +60,7 @@ export class CommitNode extends ViewNode {
     this.message = commit.message
     this.outgoing = options.outgoing ?? false
     this.upstreamName = options.upstreamName
-    const descriptionParts = [
-      shortenSha(commit.sha),
-      formatRelativeDate(commit.date),
-    ]
+    const descriptionParts = [shortenSha(commit.sha), formatDate(commit.date)]
     if (this.outgoing) descriptionParts.push("outgoing")
     this.description = descriptionParts.join(" | ")
     const copyShaArgs = commandArgs({ sha: commit.sha })
@@ -77,7 +74,7 @@ export class CommitNode extends ViewNode {
         statusLine +
         `SHA: \`${commit.sha}\`\n\n` +
         `Author: ${commit.author.name} <${commit.author.email}>\n\n` +
-        `Date: ${commit.date.toLocaleString()}\n\n` +
+        `Date: ${formatDate(commit.date)}\n\n` +
         (commit.message !== commit.summary
           ? `---\n\n${truncateLines(commit.message, 20)}`
           : ""),
@@ -102,7 +99,7 @@ export class CommitNode extends ViewNode {
   }
 }
 
-// ── File Node ──
+// File Node
 
 export class FileNode extends ViewNode {
   readonly contextValue = ContextValues.File
@@ -178,7 +175,7 @@ export class FileNode extends ViewNode {
   }
 }
 
-// ── Branch Node ──
+// Branch Node
 
 export class BranchNode extends ViewNode {
   readonly contextValue: string
@@ -218,7 +215,7 @@ export class BranchNode extends ViewNode {
           ? `Upstream: ${branch.upstream.name}${formatBranchUpstreamDescription(branch.upstream)}\n\n`
           : "") +
         (branch.sha ? `SHA: \`${branch.sha}\`\n\n` : "") +
-        (branch.date ? `Date: ${branch.date.toLocaleString()}` : ""),
+        (branch.date ? `Date: ${formatDate(branch.date)}` : ""),
     )
     if (branch.sha) {
       const compareArgs = commandArgs({ sha: branch.sha, repoPath })
@@ -238,7 +235,7 @@ export class BranchNode extends ViewNode {
   }
 }
 
-// ── Remote Node ──
+// Remote Node
 
 export class RemoteNode extends ViewNode {
   readonly contextValue = ContextValues.Remote
@@ -269,7 +266,7 @@ export class RemoteNode extends ViewNode {
   }
 }
 
-// ── Tag Node ──
+// Tag Node
 
 export class TagNode extends ViewNode {
   readonly contextValue = ContextValues.Tag
@@ -287,13 +284,11 @@ export class TagNode extends ViewNode {
     this.sha = tag.sha
     this.message = tag.message
     this.annotation = tag.annotation
-    this.description = tag.date
-      ? formatRelativeDate(tag.date)
-      : shortenSha(tag.sha)
+    this.description = tag.date ? formatDate(tag.date) : shortenSha(tag.sha)
     this.tooltip = new vscode.MarkdownString(
       `$(tag) **${tag.name}**\n\n` +
         `SHA: \`${tag.sha}\`\n\n` +
-        (tag.date ? `Date: ${tag.date.toLocaleString()}\n\n` : "") +
+        (tag.date ? `Date: ${formatDate(tag.date)}\n\n` : "") +
         (tag.message ? `Message: ${tag.message}` : ""),
     )
     const copyTagArgs = commandArgs({ name: tag.name })
@@ -311,7 +306,7 @@ export class TagNode extends ViewNode {
   }
 }
 
-// ── Stash Node ──
+// Stash Node
 
 export class StashNode extends ViewNode {
   readonly contextValue = ContextValues.Stash
@@ -331,12 +326,12 @@ export class StashNode extends ViewNode {
     this.sha = stash.sha
     this.message = stash.message
     this.stashIndex = stash.index
-    this.description = `stash@{${stash.index}} • ${formatRelativeDate(stash.date)}`
+    this.description = `stash@{${stash.index}} | ${formatDate(stash.date)}`
     this.tooltip = new vscode.MarkdownString(
       `$(archive) **stash@{${stash.index}}**\n\n` +
         `Message: ${stash.message}\n\n` +
         `Author: ${stash.author.name}\n\n` +
-        `Date: ${stash.date.toLocaleString()}\n\n` +
+        `Date: ${formatDate(stash.date)}\n\n` +
         `SHA: \`${stash.sha}\``,
     )
     const copyShaArgs = commandArgs({ sha: stash.sha })
@@ -350,7 +345,7 @@ export class StashNode extends ViewNode {
   }
 }
 
-// ── Worktree Node ──
+// Worktree Node
 
 export class WorktreeNode extends ViewNode {
   readonly contextValue: string
@@ -392,7 +387,7 @@ export class WorktreeNode extends ViewNode {
   }
 }
 
-// ── Message Node (for loading/empty states) ──
+// Message Node (for loading/empty states)
 
 export class MessageNode extends vscode.TreeItem {
   constructor(message: string) {
@@ -401,7 +396,7 @@ export class MessageNode extends vscode.TreeItem {
   }
 }
 
-// ── Helpers ──
+// Helpers
 
 /** Encode command arguments for use in MarkdownString command URIs. */
 function commandArgs(...args: unknown[]): string {
@@ -458,26 +453,6 @@ function formatBranchUpstreamDescription(
 ): string {
   const status = formatBranchUpstreamStatus(upstream)
   return status ? ` (${status})` : ""
-}
-
-function formatRelativeDate(date: Date): string {
-  const now = Date.now()
-  const diff = now - date.getTime()
-  const seconds = Math.floor(diff / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
-  const weeks = Math.floor(days / 7)
-  const months = Math.floor(days / 30)
-  const years = Math.floor(days / 365)
-
-  if (years > 0) return `${years}y ago`
-  if (months > 0) return `${months}mo ago`
-  if (weeks > 0) return `${weeks}w ago`
-  if (days > 0) return `${days}d ago`
-  if (hours > 0) return `${hours}h ago`
-  if (minutes > 0) return `${minutes}m ago`
-  return "just now"
 }
 
 export function getRepositoryLabel(repoPath: string): string {
