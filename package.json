@@ -719,7 +719,7 @@
     "build": "node scripts/build.mjs",
     "build:dev": "node scripts/build.mjs --dev",
     "watch": "node scripts/build.mjs --watch",
-    "test": "vscode-test",
+    "test": "tsc -p tsconfig.test.json && vscode-test",
     "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
     "lint": "prettier --check .",
     "lint:commits": "commitlint --from $(git rev-list --max-parents=0 HEAD) --to HEAD",
