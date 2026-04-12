@@ -5,9 +5,10 @@ import {
   SearchAndCompareView,
   CompareResultNode,
   SearchResultNode,
+  isShaSearchQuery,
 } from "../views/searchAndCompareView"
 import { CommitNode, FileNode, MessageNode } from "../views/nodes"
-import { ContextValues } from "../constants"
+import { ContextValues, ViewIds } from "../constants"
 import type { GitService } from "../git/gitService"
 import type { GitCommit, GitFile } from "../git/models"
 
@@ -70,6 +71,38 @@ function makeTestView(stub?: GitService): SearchAndCompareView {
   return new SearchAndCompareView(stub ?? makeGitServiceStub(), {
     skipRegistration: true,
   })
+}
+
+function makeRevealTestView(options?: { failingCommands?: Set<string> }): {
+  view: SearchAndCompareView
+  commands: string[]
+  reveals: Array<{ item: unknown; options: unknown }>
+} {
+  const commands: string[] = []
+  const reveals: Array<{ item: unknown; options: unknown }> = []
+  const failingCommands = options?.failingCommands ?? new Set<string>()
+
+  const view = new SearchAndCompareView(makeGitServiceStub(), {
+    skipRegistration: true,
+    commandExecutor: {
+      async executeCommand(command: string): Promise<unknown> {
+        commands.push(command)
+        if (failingCommands.has(command)) {
+          throw new Error(`Command failed: ${command}`)
+        }
+        return undefined
+      },
+    } as any,
+    treeView: {
+      description: undefined,
+      dispose: () => {},
+      reveal: async (item: unknown, revealOptions: unknown) => {
+        reveals.push({ item, options: revealOptions })
+      },
+    } as any,
+  })
+
+  return { view, commands, reveals }
 }
 
 suite("SearchAndCompareView", () => {
@@ -198,6 +231,16 @@ suite("SearchAndCompareView", () => {
       assert.strictEqual(node.description, "by Changes | repo")
     })
 
+    test("should accept sha mode", () => {
+      const node = new SearchResultNode("abc1234", REPO_PATH, "sha")
+      assert.strictEqual(node.mode, "sha")
+      assert.strictEqual(node.label, '"abc1234"')
+      assert.strictEqual(node.description, "by SHA | repo")
+      assert.ok(node.tooltip instanceof MarkdownString)
+      const value = (node.tooltip as MarkdownString).value
+      assert.ok(value.includes("SHA"), "tooltip should contain mode label")
+    })
+
     test("should set contextValue to SearchResult", () => {
       const node = new SearchResultNode("fix login", REPO_PATH)
       assert.strictEqual(node.contextValue, ContextValues.SearchResult)
@@ -228,6 +271,77 @@ suite("SearchAndCompareView", () => {
       assert.ok(value.includes("fix login"), "tooltip should contain query")
       assert.ok(value.includes("Author"), "tooltip should contain mode label")
       assert.ok(value.includes("Repository: repo"))
+    })
+  })
+
+  suite("SHA query detection", () => {
+    let view: SearchAndCompareView
+
+    teardown(() => {
+      view?.dispose()
+    })
+
+    test("should detect full SHAs and abbreviated prefixes", () => {
+      view = makeTestView()
+      const fullSha = SHA_A.slice(0, 40)
+
+      assert.strictEqual(view._test.isShaSearchQuery("abc1"), true)
+      assert.strictEqual(view._test.isShaSearchQuery(" ABC1234 "), true)
+      assert.strictEqual(view._test.isShaSearchQuery(fullSha), true)
+      assert.strictEqual(isShaSearchQuery(fullSha), true)
+    })
+
+    test("should reject non-SHA queries", () => {
+      view = makeTestView()
+      assert.strictEqual(view._test.isShaSearchQuery("abc"), false)
+      assert.strictEqual(view._test.isShaSearchQuery("fix login"), false)
+      assert.strictEqual(view._test.isShaSearchQuery("gggg"), false)
+      assert.strictEqual(view._test.isShaSearchQuery("a".repeat(41)), false)
+    })
+  })
+
+  suite("result reveal", () => {
+    let view: SearchAndCompareView
+
+    teardown(() => {
+      view?.dispose()
+    })
+
+    test("should focus Search and Compare before revealing the result", async () => {
+      const result = makeRevealTestView()
+      view = result.view
+      const node = new SearchResultNode("integration", REPO_PATH)
+
+      await view._test.revealResult(node)
+
+      assert.deepStrictEqual(result.commands, [
+        "workbench.view.extension.gitlessInspect",
+        `${ViewIds.SearchAndCompare}.focus`,
+      ])
+      assert.strictEqual(result.reveals.length, 1)
+      assert.strictEqual(result.reveals[0]?.item, node)
+      assert.deepStrictEqual(result.reveals[0]?.options, {
+        select: true,
+        focus: true,
+        expand: true,
+      })
+    })
+
+    test("should still reveal the result when focus fails", async () => {
+      const result = makeRevealTestView({
+        failingCommands: new Set(["workbench.view.extension.gitlessInspect"]),
+      })
+      view = result.view
+      const node = new SearchResultNode("integration", REPO_PATH)
+
+      await view._test.revealResult(node)
+
+      assert.deepStrictEqual(result.commands, [
+        "workbench.view.extension.gitlessInspect",
+        `${ViewIds.SearchAndCompare}.focus`,
+      ])
+      assert.strictEqual(result.reveals.length, 1)
+      assert.strictEqual(result.reveals[0]?.item, node)
     })
   })
 
@@ -324,6 +438,27 @@ suite("SearchAndCompareView", () => {
       const root = await view.getChildren()
       await view.getChildren(root[0])
       assert.strictEqual(capturedMode, "author")
+    })
+
+    test("should pass sha search mode to gitService.searchCommits", async () => {
+      let capturedQuery: string | undefined
+      let capturedMode: string | undefined
+      const stub = makeGitServiceStub()
+      stub.searchCommits = async (
+        _rp: string,
+        query: string,
+        opts?: { mode?: string },
+      ) => {
+        capturedQuery = query
+        capturedMode = opts?.mode
+        return []
+      }
+      view = makeTestView(stub)
+      view._test.addSearchResult("abc1234", REPO_PATH, "sha")
+      const root = await view.getChildren()
+      await view.getChildren(root[0])
+      assert.strictEqual(capturedQuery, "abc1234")
+      assert.strictEqual(capturedMode, "sha")
     })
 
     test("compare FileNodes should carry previousSha (ref1) for diffs", async () => {

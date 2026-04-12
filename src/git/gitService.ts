@@ -428,10 +428,14 @@ export class GitService implements vscode.Disposable {
     query: string,
     options?: {
       maxCount?: number
-      mode?: "message" | "author" | "file" | "changes"
+      mode?: "message" | "author" | "file" | "changes" | "sha"
     },
   ): Promise<GitCommit[]> {
     const mode = options?.mode ?? "message"
+    if (mode === "sha") {
+      return this.searchCommitBySha(repoPath, query)
+    }
+
     const args = [
       "log",
       `--format=${getLogFormat()}`,
@@ -453,6 +457,33 @@ export class GitService implements vscode.Disposable {
         break
     }
     const output = await this.gitExec(args, { cwd: repoPath })
+    return parseCommits(output)
+  }
+
+  private async searchCommitBySha(
+    repoPath: string,
+    query: string,
+  ): Promise<GitCommit[]> {
+    const normalizedQuery = query.trim().toLowerCase()
+    if (!/^[0-9a-f]{4,40}$/.test(normalizedQuery)) return []
+
+    let resolvedSha: string
+    try {
+      const output = await this.gitExec(
+        ["rev-parse", "--verify", "--quiet", `${normalizedQuery}^{commit}`],
+        { cwd: repoPath },
+      )
+      resolvedSha = output.trim()
+    } catch {
+      return []
+    }
+
+    if (!/^[0-9a-f]{40}$/.test(resolvedSha)) return []
+
+    const output = await this.gitExec(
+      ["show", "--no-patch", `--format=${getLogFormat()}`, resolvedSha],
+      { cwd: repoPath },
+    )
     return parseCommits(output)
   }
 

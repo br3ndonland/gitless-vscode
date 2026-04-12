@@ -2,6 +2,7 @@ import * as assert from "node:assert"
 import { suite, test } from "mocha"
 import * as vscode from "vscode"
 import { GitService } from "../git/gitService"
+import { getLogFormat } from "../git/parsers"
 
 const REPO_A = "/workspace/repo-a"
 const REPO_A_NESTED = "/workspace/repo-a/packages/pkg-a"
@@ -11,6 +12,7 @@ const MULTI_REPO = "/workspace/multi-repo"
 const FASTENV = `${MULTI_REPO}/fastenv`
 const TEMPLATE_PYTHON = `${MULTI_REPO}/template-python`
 const STASH_SHA = "cccccccccccccccccccccccccccccccccccccccc"
+const SEARCH_SHA = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 const SCAN_DEPTH_ROOT = "/workspace/scan-depth"
 const SCAN_DEPTH_REPOS = [
   `${SCAN_DEPTH_ROOT}/repo-depth-1`,
@@ -204,6 +206,59 @@ function createStashFilesService(overrides?: {
   return { service, calls }
 }
 
+function createSearchCommitByShaService(overrides?: {
+  revParseOutput?: string
+  revParseError?: Error
+  showOutput?: string
+}): { service: GitService; calls: GitExecArgs[] } {
+  const resolvedSha = overrides?.revParseOutput ?? SEARCH_SHA
+  const showOutput =
+    overrides?.showOutput ?? makeLogOutput(resolvedSha, "fix: sha search")
+  const calls: GitExecArgs[] = []
+
+  const service = new GitService({
+    async gitExec(args: GitExecArgs): Promise<string> {
+      calls.push([...args])
+
+      if (
+        args[0] === "rev-parse" &&
+        args[1] === "--verify" &&
+        args[2] === "--quiet"
+      ) {
+        if (overrides?.revParseError) throw overrides.revParseError
+        return `${resolvedSha}\n`
+      }
+
+      if (args[0] === "show" && args[1] === "--no-patch") {
+        return showOutput
+      }
+
+      throw new Error(`Unexpected git command: ${args.join(" ")}`)
+    },
+    workspace: createWorkspaceStub([]).stub,
+    window: createWindowStub().stub,
+    commands: createCommandsStub(),
+  })
+
+  return { service, calls }
+}
+
+function makeLogOutput(sha: string, summary: string): string {
+  return [
+    sha,
+    sha.slice(0, 7),
+    "",
+    "Test",
+    "test@test.com",
+    "2024-01-15T10:30:00Z",
+    "Test",
+    "test@test.com",
+    "2024-01-15T10:30:00Z",
+    summary,
+    "<<END_COMMIT>>",
+  ].join("\n")
+}
+
 function getRepositoryForPath(
   fsPath: string,
 ): { rootPath: string; headSha: string; headBranch: string } | undefined {
@@ -372,6 +427,62 @@ suite("GitService", () => {
 
       assert.deepStrictEqual(files, [
         { path: "src/tracked.ts", originalPath: undefined, status: "modified" },
+      ])
+
+      service.dispose()
+    })
+  })
+
+  suite("searchCommits", () => {
+    test("should resolve sha search by unique prefix", async () => {
+      const prefix = SEARCH_SHA.slice(0, 7).toUpperCase()
+      const { service, calls } = createSearchCommitByShaService()
+
+      const commits = await service.searchCommits(REPO_A, prefix, {
+        mode: "sha",
+      })
+
+      assert.strictEqual(commits.length, 1)
+      assert.strictEqual(commits[0]?.sha, SEARCH_SHA)
+      assert.deepStrictEqual(calls, [
+        [
+          "rev-parse",
+          "--verify",
+          "--quiet",
+          `${SEARCH_SHA.slice(0, 7)}^{commit}`,
+        ],
+        ["show", "--no-patch", `--format=${getLogFormat()}`, SEARCH_SHA],
+      ])
+
+      service.dispose()
+    })
+
+    test("should return no results for invalid sha query", async () => {
+      const { service, calls } = createSearchCommitByShaService()
+
+      const commits = await service.searchCommits(REPO_A, "fix login", {
+        mode: "sha",
+      })
+
+      assert.deepStrictEqual(commits, [])
+      assert.deepStrictEqual(calls, [])
+
+      service.dispose()
+    })
+
+    test("should return no results for unresolved sha query", async () => {
+      const prefix = SEARCH_SHA.slice(0, 7)
+      const { service, calls } = createSearchCommitByShaService({
+        revParseError: new Error("ambiguous or missing revision"),
+      })
+
+      const commits = await service.searchCommits(REPO_A, prefix, {
+        mode: "sha",
+      })
+
+      assert.deepStrictEqual(commits, [])
+      assert.deepStrictEqual(calls, [
+        ["rev-parse", "--verify", "--quiet", `${prefix}^{commit}`],
       ])
 
       service.dispose()

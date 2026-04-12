@@ -23,20 +23,20 @@ What GitLess _does not_ do:
 
 Access common commands from the VSCode command palette (`Ctrl+Shift+P` / `Cmd+Shift+P`):
 
-| Command                              | Description                                           |
-| ------------------------------------ | ----------------------------------------------------- |
-| GitLess: Copy link to repository     | Copy the remote repository URL                        |
-| GitLess: Copy remote file URL        | Copy the URL of the current file on the remote        |
-| GitLess: Copy remote file URL from   | Copy the file URL for a specific branch or tag        |
-| GitLess: Copy remote commit URL      | Copy the URL of the current commit                    |
-| GitLess: Copy remote commit URL from | Copy the commit URL from a specific remote            |
-| GitLess: Copy SHA                    | Copy the full commit SHA                              |
-| GitLess: Copy short SHA              | Copy the short commit SHA                             |
-| GitLess: Open file on remote         | Open the current file on the remote                   |
-| GitLess: Open commit on remote       | Open the current commit on the remote                 |
-| GitLess: Select Repository           | Switch the active repository in multi-repo workspaces |
-| GitLess: Search Commits              | Search commits by message, author, file, or changes   |
-| GitLess: Compare References          | Compare branches, tags, or refs                       |
+| Command                              | Description                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------ |
+| GitLess: Copy link to repository     | Copy the remote repository URL                                           |
+| GitLess: Copy remote file URL        | Copy the URL of the current file on the remote                           |
+| GitLess: Copy remote file URL from   | Copy the file URL for a specific branch or tag                           |
+| GitLess: Copy remote commit URL      | Copy the URL of the current commit                                       |
+| GitLess: Copy remote commit URL from | Copy the commit URL from a specific remote                               |
+| GitLess: Copy SHA                    | Copy the full commit SHA                                                 |
+| GitLess: Copy short SHA              | Copy the short commit SHA                                                |
+| GitLess: Open file on remote         | Open the current file on the remote                                      |
+| GitLess: Open commit on remote       | Open the current commit on the remote                                    |
+| GitLess: Select Repository           | Switch the active repository in multi-repo workspaces                    |
+| GitLess: Search Commits              | Search commits by message, author, SHA (short or full), file, or changes |
+| GitLess: Compare References          | Compare branches, tags, or refs                                          |
 
 ### Source Control Panel
 
@@ -94,7 +94,7 @@ The GitLess Inspect sidebar panel provides:
 
 - **File History** - View the commit history of the active file
 - **Line History** - View the commit history of selected lines
-- **Search and Compare** - Search commits by message, author, file, or changes; compare branches, tags, or refs
+- **Search and Compare** - Search commits by message, author, SHA (short or full), file, or changes; compare branches, tags, or refs
 
 ### Remote Provider Support
 

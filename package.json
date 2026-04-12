@@ -662,7 +662,7 @@
     "viewsWelcome": [
       {
         "view": "gitless.views.searchAndCompare",
-        "contents": "Search commits by message, author, file, or changes.\n[Search Commits...](command:gitless.searchCommits)\nCompare a branch, tag, or ref with another.\n[Compare References...](command:gitless.compareRefs)"
+        "contents": "Search commits by message, author, SHA, file, or changes.\n[Search Commits...](command:gitless.searchCommits)\nCompare a branch, tag, or ref with another.\n[Compare References...](command:gitless.compareRefs)"
       }
     ],
     "configuration": {

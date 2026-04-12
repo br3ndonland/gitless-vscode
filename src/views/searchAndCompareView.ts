@@ -4,13 +4,35 @@ import { CommitNode, FileNode, MessageNode, getRepositoryLabel } from "./nodes"
 import { ViewIds, Commands, ContextValues } from "../constants"
 import { shortenSha } from "../config"
 
-export type SearchMode = "message" | "author" | "file" | "changes"
+export type SearchMode = "message" | "author" | "file" | "changes" | "sha"
+type SearchAndCompareCommandExecutor = Pick<
+  typeof vscode.commands,
+  "executeCommand"
+>
+type SearchAndCompareTreeView = Pick<
+  vscode.TreeView<vscode.TreeItem>,
+  "description" | "dispose" | "reveal"
+>
+interface SearchAndCompareViewOptions {
+  skipRegistration?: boolean
+  commandExecutor?: SearchAndCompareCommandExecutor
+  treeView?: SearchAndCompareTreeView
+}
+
+const searchAndCompareViewContainerCommand =
+  "workbench.view.extension.gitlessInspect"
+const searchAndCompareViewFocusCommand = `${ViewIds.SearchAndCompare}.focus`
 
 const searchModeLabels: Record<SearchMode, string> = {
   message: "Message",
   author: "Author",
   file: "File",
   changes: "Changes",
+  sha: "SHA",
+}
+
+export function isShaSearchQuery(query: string): boolean {
+  return /^[0-9a-f]{4,40}$/i.test(query.trim())
 }
 
 export class CompareResultNode extends vscode.TreeItem {
@@ -63,20 +85,26 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
   >()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
-  private treeView: vscode.TreeView<vscode.TreeItem> | undefined
+  private treeView: SearchAndCompareTreeView | undefined
   private items: (CompareResultNode | SearchResultNode)[] = []
   private disposables: vscode.Disposable[] = []
   private idGeneration = 0
+  private readonly commandExecutor: SearchAndCompareCommandExecutor
 
   constructor(
     private readonly gitService: GitService,
-    options?: { skipRegistration?: boolean },
+    options: SearchAndCompareViewOptions = {},
   ) {
-    if (!options?.skipRegistration) {
-      this.treeView = vscode.window.createTreeView(ViewIds.SearchAndCompare, {
-        treeDataProvider: this,
-        showCollapseAll: true,
-      })
+    this.commandExecutor = options.commandExecutor ?? vscode.commands
+    this.treeView = options.treeView
+
+    if (!options.skipRegistration) {
+      this.treeView =
+        options.treeView ??
+        vscode.window.createTreeView(ViewIds.SearchAndCompare, {
+          treeDataProvider: this,
+          showCollapseAll: true,
+        })
       this.disposables.push(this.treeView)
       this.disposables.push(this.gitService.onDidChange(() => this.refresh()))
       void this.updateViewDescription()
@@ -183,6 +211,7 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
         author: "Enter author name or email",
         file: "Enter file path (e.g. src/index.ts)",
         changes: "Enter string to search for in diffs",
+        sha: "Enter commit SHA or unique prefix (e.g. abc1234)",
       }
 
       query = await vscode.window.showInputBox({
@@ -193,20 +222,20 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
     if (!query) return
 
     this.collapseAllItems()
-    this.items.unshift(
-      new SearchResultNode(
-        query,
-        repoPath,
-        mode,
-        activeRepository.label,
-        vscode.TreeItemCollapsibleState.Expanded,
-      ),
+    const result = new SearchResultNode(
+      query,
+      repoPath,
+      mode,
+      activeRepository.label,
+      vscode.TreeItemCollapsibleState.Expanded,
     )
+    this.items.unshift(result)
     this.refresh()
+    void this.revealResult(result)
   }
 
   /** Show a QuickPick for search mode. If the user types a query and presses
-   *  Enter without selecting an item, return that text with mode "message". */
+   *  Enter without selecting an item, infer SHA or default to message. */
   private pickSearchMode(): Promise<
     { mode: SearchMode; query?: string } | undefined
   > {
@@ -214,8 +243,7 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
       const qp = vscode.window.createQuickPick<
         vscode.QuickPickItem & { mode: SearchMode }
       >()
-      qp.placeholder =
-        "Search commits by... (or type a query to search messages)"
+      qp.placeholder = "Search commits by... (or type a message or SHA query)"
       qp.items = [
         {
           label: "$(mail) Message",
@@ -226,6 +254,11 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
           label: "$(person) Author",
           description: "Search by author name or email",
           mode: "author" as SearchMode,
+        },
+        {
+          label: "$(git-commit) SHA",
+          description: "Search by full SHA or unique prefix",
+          mode: "sha" as SearchMode,
         },
         {
           label: "$(file) File",
@@ -257,8 +290,8 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
           // User picked a mode item
           done({ mode: selected.mode })
         } else if (qp.value.trim()) {
-          // User typed a query without selecting an item -- default to message
-          done({ mode: "message", query: qp.value.trim() })
+          const query = qp.value.trim()
+          done({ mode: isShaSearchQuery(query) ? "sha" : "message", query })
         }
         // If nothing selected and nothing typed, ignore the accept
       })
@@ -293,22 +326,47 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
       const sha1 = await this.gitService.getShaForRef(repoPath, ref1Pick.ref)
       const sha2 = await this.gitService.getShaForRef(repoPath, ref2Pick.ref)
       this.collapseAllItems()
-      this.items.unshift(
-        new CompareResultNode(
-          sha1,
-          sha2,
-          ref1Pick.label,
-          ref2Pick.label,
-          repoPath,
-          activeRepository.label,
-          vscode.TreeItemCollapsibleState.Expanded,
-        ),
+      const result = new CompareResultNode(
+        sha1,
+        sha2,
+        ref1Pick.label,
+        ref2Pick.label,
+        repoPath,
+        activeRepository.label,
+        vscode.TreeItemCollapsibleState.Expanded,
       )
+      this.items.unshift(result)
       this.refresh()
+      void this.revealResult(result)
     } catch (err) {
       vscode.window.showErrorMessage(
         `Failed to resolve refs: ${err instanceof Error ? err.message : String(err)}`,
       )
+    }
+  }
+
+  private async revealResult(
+    item: CompareResultNode | SearchResultNode,
+  ): Promise<void> {
+    await this.executeWorkbenchCommand(searchAndCompareViewContainerCommand)
+    await this.executeWorkbenchCommand(searchAndCompareViewFocusCommand)
+
+    try {
+      await this.treeView?.reveal(item, {
+        select: true,
+        focus: true,
+        expand: true,
+      })
+    } catch {
+      // The result is already stored; focus failures should not fail the search.
+    }
+  }
+
+  private async executeWorkbenchCommand(command: string): Promise<void> {
+    try {
+      await this.commandExecutor.executeCommand(command)
+    } catch {
+      // The result is already stored; focus failures should not fail the search.
     }
   }
 
@@ -452,6 +510,9 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
       clearAll: () => this.clearAll(),
       dismissNode: (node: CompareResultNode | SearchResultNode) =>
         this.dismissNode(node),
+      isShaSearchQuery,
+      revealResult: (node: CompareResultNode | SearchResultNode) =>
+        this.revealResult(node),
     }
   }
 
