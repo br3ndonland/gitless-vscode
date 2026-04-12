@@ -9,7 +9,9 @@ import type {
   GitWorktree,
   GitFile,
   GitFileStatus,
+  RemoteProviderInfo,
 } from "../git/models"
+import { linkifyAutolinks } from "../git/autolinks"
 import { Commands, ContextValues } from "../constants"
 import { formatDate, shortenSha } from "../config"
 
@@ -19,6 +21,7 @@ export const FILE_NODE_URI_SCHEME = "gitless-file"
 
 export interface CommitNodeOptions {
   outgoing?: boolean
+  remoteProvider?: RemoteProviderInfo
   upstreamName?: string
 }
 
@@ -69,15 +72,21 @@ export class CommitNode extends ViewNode {
     const statusLine = this.outgoing
       ? `Status: outgoing${this.upstreamName ? ` to ${this.upstreamName}` : ""}\n\n`
       : ""
+    const summary = linkifyAutolinks(commit.summary, options.remoteProvider)
+    const message =
+      commit.message !== commit.summary
+        ? linkifyAutolinks(
+            truncateLines(commit.message, 20),
+            options.remoteProvider,
+          )
+        : ""
     this.tooltip = new vscode.MarkdownString(
-      `$(git-commit) **${commit.summary}**\n\n` +
+      `$(git-commit) **${summary}**\n\n` +
         statusLine +
         `SHA: \`${commit.sha}\`\n\n` +
         `Author: ${commit.author.name} <${commit.author.email}>\n\n` +
         `Date: ${formatDate(commit.date)}\n\n` +
-        (commit.message !== commit.summary
-          ? `---\n\n${truncateLines(commit.message, 20)}`
-          : ""),
+        (message ? `---\n\n${message}` : ""),
     )
     this.tooltip.appendMarkdown(
       `\n\n---\n\n` +
@@ -87,7 +96,13 @@ export class CommitNode extends ViewNode {
         ` | ` +
         `[$(link-external) Open on remote](command:${Commands.OpenCommitOnRemote}?${openRemoteArgs} "Open commit on remote")`,
     )
-    this.tooltip.isTrusted = true
+    this.tooltip.isTrusted = {
+      enabledCommands: [
+        Commands.CopySha,
+        Commands.CopyMessage,
+        Commands.OpenCommitOnRemote,
+      ],
+    }
     this.tooltip.supportThemeIcons = true
     this.iconPath = new vscode.ThemeIcon(
       "git-commit",

@@ -32,7 +32,14 @@ export class TagsView implements vscode.TreeDataProvider<vscode.TreeItem> {
           { maxCount: 20 },
         )
         if (commits.length === 0) return [new MessageNode("No commits")]
-        return commits.map((c) => new CommitNode(c, element.repoPath))
+        const remoteProvider = (
+          await this.gitService
+            .getPreferredAutolinkRemote(element.repoPath)
+            .catch(() => undefined)
+        )?.provider
+        return commits.map(
+          (c) => new CommitNode(c, element.repoPath, { remoteProvider }),
+        )
       } catch {
         return [new MessageNode("Failed to load commits")]
       }

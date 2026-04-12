@@ -149,6 +149,18 @@ suite("Parsers", () => {
       assert.strictEqual(remotes[0].provider?.owner, "user")
       assert.strictEqual(remotes[0].provider?.repo, "repo")
     })
+
+    test("should identify Codeberg SSH remotes as Forgejo", () => {
+      const output = [
+        "origin\tssh://git@codeberg.org/owner-name/repo-name.git\t(fetch)",
+        "origin\tssh://git@codeberg.org/owner-name/repo-name.git\t(push)",
+      ].join("\n")
+      const remotes = parseRemotes(output)
+      assert.strictEqual(remotes[0].provider?.id, "forgejo")
+      assert.strictEqual(remotes[0].provider?.domain, "codeberg.org")
+      assert.strictEqual(remotes[0].provider?.owner, "owner-name")
+      assert.strictEqual(remotes[0].provider?.repo, "repo-name")
+    })
   })
 
   suite("parseRemoteProvider", () => {
@@ -177,6 +189,24 @@ suite("Parsers", () => {
         "https://bitbucket.org/owner/repo.git",
       )
       assert.strictEqual(provider?.id, "bitbucket")
+    })
+
+    test("should parse Codeberg URL as Forgejo", () => {
+      const provider = parseRemoteProvider(
+        "https://codeberg.org/owner/repo.git",
+      )
+      assert.strictEqual(provider?.id, "forgejo")
+      assert.strictEqual(provider?.name, "Forgejo")
+    })
+
+    test("should parse Codeberg SSH URL as Forgejo", () => {
+      const provider = parseRemoteProvider(
+        "ssh://git@codeberg.org/owner-name/repo-name.git",
+      )
+      assert.strictEqual(provider?.id, "forgejo")
+      assert.strictEqual(provider?.domain, "codeberg.org")
+      assert.strictEqual(provider?.owner, "owner-name")
+      assert.strictEqual(provider?.repo, "repo-name")
     })
 
     test("should return undefined for unknown providers", () => {

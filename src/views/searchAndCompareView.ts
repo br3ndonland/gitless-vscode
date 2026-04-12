@@ -162,7 +162,14 @@ export class SearchAndCompareView implements vscode.TreeDataProvider<vscode.Tree
           { mode: element.mode },
         )
         if (commits.length === 0) return [new MessageNode("No results")]
-        return commits.map((c) => new CommitNode(c, element.repoPath))
+        const remoteProvider = (
+          await this.gitService
+            .getPreferredAutolinkRemote(element.repoPath)
+            .catch(() => undefined)
+        )?.provider
+        return commits.map(
+          (c) => new CommitNode(c, element.repoPath, { remoteProvider }),
+        )
       } catch {
         return [new MessageNode("Search failed")]
       }

@@ -68,7 +68,7 @@ At this time, agents should not automatically run `pnpm run test` (unit tests wi
 - `src/constants.ts` - Single source of truth for command IDs, view IDs, and context value strings.
 - `src/git/gitService.ts` - Repository discovery, active repository selection, and high-level Git operations.
 - `src/git/parsers.ts` - Git output parsing. Changes here should be accompanied by unit tests in `src/__tests__/parsers.test.ts`.
-- `src/git/remoteUrls.ts` - Remote URL generation for GitHub, GitLab, Bitbucket, Azure DevOps, and Gitea. Tests in `src/__tests__/remoteUrls.test.ts`.
+- `src/git/remoteUrls.ts` - Remote URL generation for GitHub, GitLab, Forgejo/Codeberg, Azure DevOps, and Bitbucket. Tests in `src/__tests__/remoteUrls.test.ts`.
 - `src/views/searchAndCompareView.ts` - Search and Compare Inspect panel behavior. Tests are in `src/__tests__/searchAndCompareView.test.ts`.
 
 ## Testing Guidelines

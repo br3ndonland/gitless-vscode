@@ -58,6 +58,8 @@ function makeGitServiceStub(overrides?: {
     searchCommits: async () => searchResults,
     diff: async () => diffResults,
     getCommitFiles: async () => commitFiles,
+    getPreferredRemote: async () => undefined,
+    getPreferredAutolinkRemote: async () => undefined,
     getShaForRef: async (_rp: string, ref: string) => ref,
     getBranches: async () => [],
     getTags: async () => [],

@@ -60,6 +60,16 @@ Hover over a commit to reveal inline buttons:
 | Copy SHA         | Copy the full commit SHA   | Copy the commit message                 |
 | Open on remote   | Open the commit on the web | Copy the remote commit URL to clipboard |
 
+Commit tooltips autolink common references in commit summaries and bodies, including:
+
+- Raw `http` and `https` URLs
+- Commit references, including short SHAs (`a05b1ad`, `1765166`), full SHAs, and `owner/repo@SHA`
+- [GitHub autolinked references](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls) like `GH-123`, `#123`, and `owner/repo#123`
+- [GitLab crosslinks](https://docs.gitlab.com/user/project/issues/crosslinking_issues/) like `GL-123`, `!123`, and `owner/repo!123`
+- [Forgejo](https://forgejo.org/docs/latest/user/linked-references/) and [Codeberg](https://docs.codeberg.org/markdown/introduction-to-markdown/) references
+
+Provider-specific tooltip links prefer a recognized `upstream` remote, then `origin`, then the first recognized remote so forked checkouts can link references to the source repository. Remote open and copy commands still use the command preferred remote, choosing `origin` first and then the first recognized remote.
+
 #### File Hover Actions
 
 Expand a commit to see its files, then hover for inline buttons:
@@ -102,9 +112,9 @@ GitLess generates correct URLs for:
 
 - GitHub
 - GitLab
-- Bitbucket
+- Forgejo (including Codeberg)
 - Azure DevOps
-- Gitea (including Codeberg)
+- Bitbucket
 
 ## Configuration
 

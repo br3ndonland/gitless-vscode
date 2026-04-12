@@ -43,6 +43,11 @@ export class CommitsView implements vscode.TreeDataProvider<vscode.TreeItem> {
           this.gitService.getBranches(repoPath).catch(() => []),
         ])
         if (commits.length === 0) return [new MessageNode("No commits found")]
+        const remoteProvider = (
+          await this.gitService
+            .getPreferredAutolinkRemote(repoPath)
+            .catch(() => undefined)
+        )?.provider
 
         const currentBranch = branches.find((branch) => branch.current)
         const outgoingCommitShas = new Set(
@@ -57,6 +62,7 @@ export class CommitsView implements vscode.TreeDataProvider<vscode.TreeItem> {
           (commit) =>
             new CommitNode(commit, repoPath, {
               outgoing: outgoingCommitShas.has(commit.sha),
+              remoteProvider,
               upstreamName: currentBranch?.upstream?.name,
             }),
         )

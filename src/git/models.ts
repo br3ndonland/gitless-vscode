@@ -52,7 +52,7 @@ export type RemoteProviderId =
   | "gitlab"
   | "bitbucket"
   | "azure-devops"
-  | "gitea"
+  | "forgejo"
 
 export interface GitTag {
   name: string

@@ -32,7 +32,14 @@ export class WorktreesView implements vscode.TreeDataProvider<vscode.TreeItem> {
           element.worktree.path,
           { maxCount: 20 },
         )
-        return commits.map((c) => new CommitNode(c, element.worktree.path))
+        const remoteProvider = (
+          await this.gitService
+            .getPreferredAutolinkRemote(element.worktree.path)
+            .catch(() => undefined)
+        )?.provider
+        return commits.map(
+          (c) => new CommitNode(c, element.worktree.path, { remoteProvider }),
+        )
       } catch {
         return [new MessageNode("Failed to load commits")]
       }

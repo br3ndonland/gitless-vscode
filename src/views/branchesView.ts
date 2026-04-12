@@ -37,11 +37,17 @@ export class BranchesView implements vscode.TreeDataProvider<vscode.TreeItem> {
             .getOutgoingCommitShasForBranch(element.repoPath, element.branch)
             .catch(() => []),
         ])
+        const remoteProvider = (
+          await this.gitService
+            .getPreferredAutolinkRemote(element.repoPath)
+            .catch(() => undefined)
+        )?.provider
         const outgoingCommitShas = new Set(outgoingShas)
         return commits.map(
           (commit) =>
             new CommitNode(commit, element.repoPath, {
               outgoing: outgoingCommitShas.has(commit.sha),
+              remoteProvider,
               upstreamName: element.branch.upstream?.name,
             }),
         )

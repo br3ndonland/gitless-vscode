@@ -164,36 +164,41 @@ export function parseRemoteProvider(
   // Parse SSH URLs: git@github.com:owner/repo.git
   let match = url.match(/^git@([^:]+):([^/]+)\/(.+?)(?:\.git)?$/)
   if (match) {
-    const [, domain, owner, repo] = match
-    const id = identifyProvider(domain)
-    if (id) {
-      return {
-        id,
-        name: providerName(id),
-        domain,
-        owner,
-        repo,
-      }
-    }
+    return parseRemoteProviderParts(match[1], match[2], match[3])
+  }
+
+  // Parse SSH URLs: ssh://git@github.com/owner/repo.git
+  match = url.match(
+    /^ssh:\/\/(?:[^@/]+@)?([^/:]+)(?::\d+)?\/([^/]+)\/(.+?)(?:\.git)?$/,
+  )
+  if (match) {
+    return parseRemoteProviderParts(match[1], match[2], match[3])
   }
 
   // Parse HTTPS URLs: https://github.com/owner/repo.git
   match = url.match(/^https?:\/\/([^/]+)\/([^/]+)\/(.+?)(?:\.git)?$/)
   if (match) {
-    const [, domain, owner, repo] = match
-    const id = identifyProvider(domain)
-    if (id) {
-      return {
-        id,
-        name: providerName(id),
-        domain,
-        owner,
-        repo,
-      }
-    }
+    return parseRemoteProviderParts(match[1], match[2], match[3])
   }
 
   return undefined
+}
+
+function parseRemoteProviderParts(
+  domain: string,
+  owner: string,
+  repo: string,
+): import("./models").RemoteProviderInfo | undefined {
+  const id = identifyProvider(domain)
+  if (!id) return undefined
+
+  return {
+    id,
+    name: providerName(id),
+    domain,
+    owner,
+    repo,
+  }
 }
 
 function identifyProvider(
@@ -201,10 +206,11 @@ function identifyProvider(
 ): import("./models").RemoteProviderId | undefined {
   if (domain.includes("github")) return "github"
   if (domain.includes("gitlab")) return "gitlab"
-  if (domain.includes("bitbucket")) return "bitbucket"
+  if (domain.includes("forgejo") || domain.includes("codeberg"))
+    return "forgejo"
   if (domain.includes("dev.azure") || domain.includes("visualstudio"))
     return "azure-devops"
-  if (domain.includes("gitea") || domain.includes("codeberg")) return "gitea"
+  if (domain.includes("bitbucket")) return "bitbucket"
   return undefined
 }
 
@@ -218,8 +224,8 @@ function providerName(id: import("./models").RemoteProviderId): string {
       return "Bitbucket"
     case "azure-devops":
       return "Azure DevOps"
-    case "gitea":
-      return "Gitea"
+    case "forgejo":
+      return "Forgejo"
   }
 }
 

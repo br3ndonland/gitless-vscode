@@ -236,6 +236,16 @@ export class GitService implements vscode.Disposable {
     return parseRemotes(output)
   }
 
+  async getPreferredRemote(repoPath: string): Promise<GitRemote | undefined> {
+    return pickPreferredRemote(await this.getRemotes(repoPath))
+  }
+
+  async getPreferredAutolinkRemote(
+    repoPath: string,
+  ): Promise<GitRemote | undefined> {
+    return pickPreferredAutolinkRemote(await this.getRemotes(repoPath))
+  }
+
   async getOutgoingCommitShasForBranch(
     repoPath: string,
     branch: GitBranch,
@@ -716,6 +726,23 @@ export class GitService implements vscode.Disposable {
       this.repositories.length > 1,
     )
   }
+}
+
+function pickPreferredRemote(remotes: GitRemote[]): GitRemote | undefined {
+  return (
+    remotes.find((remote) => remote.name === "origin" && remote.provider) ??
+    remotes.find((remote) => remote.provider)
+  )
+}
+
+function pickPreferredAutolinkRemote(
+  remotes: GitRemote[],
+): GitRemote | undefined {
+  return (
+    remotes.find((remote) => remote.name === "upstream" && remote.provider) ??
+    remotes.find((remote) => remote.name === "origin" && remote.provider) ??
+    remotes.find((remote) => remote.provider)
+  )
 }
 
 function normalizeCwd(fsPath: string): string {

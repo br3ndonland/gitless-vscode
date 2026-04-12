@@ -14,6 +14,12 @@ const TEMPLATE_PYTHON = `${MULTI_REPO}/template-python`
 const STASH_SHA = "cccccccccccccccccccccccccccccccccccccccc"
 const SEARCH_SHA = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
 const SCAN_DEPTH_ROOT = "/workspace/scan-depth"
+const CODEBERG_FORK_REMOTES = [
+  "origin\tssh://git@codeberg.org/fork-owner/repo-name.git (fetch)",
+  "origin\tssh://git@codeberg.org/fork-owner/repo-name.git (push)",
+  "upstream\tssh://git@codeberg.org/upstream-owner/repo-name.git (fetch)",
+  "upstream\tssh://git@codeberg.org/upstream-owner/repo-name.git (push)",
+].join("\n")
 const SCAN_DEPTH_REPOS = [
   `${SCAN_DEPTH_ROOT}/repo-depth-1`,
   `${SCAN_DEPTH_ROOT}/level-1/repo-depth-2`,
@@ -243,6 +249,18 @@ function createSearchCommitByShaService(overrides?: {
   return { service, calls }
 }
 
+function createRemoteService(remoteOutput: string): GitService {
+  return new GitService({
+    async gitExec(args: GitExecArgs): Promise<string> {
+      if (args[0] === "remote" && args[1] === "-v") return remoteOutput
+      throw new Error(`Unexpected git command: ${args.join(" ")}`)
+    },
+    workspace: createWorkspaceStub([]).stub,
+    window: createWindowStub().stub,
+    commands: createCommandsStub(),
+  })
+}
+
 function makeLogOutput(sha: string, summary: string): string {
   return [
     sha,
@@ -428,6 +446,49 @@ suite("GitService", () => {
       assert.deepStrictEqual(files, [
         { path: "src/tracked.ts", originalPath: undefined, status: "modified" },
       ])
+
+      service.dispose()
+    })
+  })
+
+  suite("preferred remotes", () => {
+    test("should keep origin as the preferred command remote", async () => {
+      const service = createRemoteService(CODEBERG_FORK_REMOTES)
+
+      const remote = await service.getPreferredRemote(REPO_A)
+
+      assert.strictEqual(remote?.name, "origin")
+      assert.strictEqual(remote?.provider?.owner, "fork-owner")
+      assert.strictEqual(remote?.provider?.repo, "repo-name")
+
+      service.dispose()
+    })
+
+    test("should prefer upstream for autolink remotes", async () => {
+      const service = createRemoteService(CODEBERG_FORK_REMOTES)
+
+      const remote = await service.getPreferredAutolinkRemote(REPO_A)
+
+      assert.strictEqual(remote?.name, "upstream")
+      assert.strictEqual(remote?.provider?.owner, "upstream-owner")
+      assert.strictEqual(remote?.provider?.repo, "repo-name")
+
+      service.dispose()
+    })
+
+    test("should ignore unrecognized upstream autolink remotes", async () => {
+      const service = createRemoteService(
+        [
+          "upstream\tssh://git@example.com/upstream-owner/repo-name.git (fetch)",
+          "origin\tssh://git@codeberg.org/fork-owner/repo-name.git (fetch)",
+        ].join("\n"),
+      )
+
+      const remote = await service.getPreferredAutolinkRemote(REPO_A)
+
+      assert.strictEqual(remote?.name, "origin")
+      assert.strictEqual(remote?.provider?.owner, "fork-owner")
+      assert.strictEqual(remote?.provider?.repo, "repo-name")
 
       service.dispose()
     })

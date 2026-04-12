@@ -35,9 +35,9 @@ const azureProvider: RemoteProviderInfo = {
   repo: "my-repo",
 }
 
-const giteaProvider: RemoteProviderInfo = {
-  id: "gitea",
-  name: "Gitea",
+const forgejoProvider: RemoteProviderInfo = {
+  id: "forgejo",
+  name: "Forgejo",
   domain: "codeberg.org",
   owner: "user",
   repo: "my-repo",
@@ -76,6 +76,82 @@ suite("Remote URLs", () => {
         sha: "abc123",
       })
       assert.strictEqual(url, "https://gitlab.com/user/my-repo/commit/abc123")
+    })
+  })
+
+  suite("Issue URLs", () => {
+    test("GitHub issue URL", () => {
+      const url = getRemoteUrl(githubProvider, {
+        type: "issue",
+        number: 123,
+      })
+      assert.strictEqual(url, "https://github.com/user/my-repo/issues/123")
+    })
+
+    test("GitHub cross-repo issue URL", () => {
+      const url = getRemoteUrl(githubProvider, {
+        type: "issue",
+        owner: "other",
+        repo: "repo",
+        number: 123,
+      })
+      assert.strictEqual(url, "https://github.com/other/repo/issues/123")
+    })
+
+    test("GitLab issue URL", () => {
+      const url = getRemoteUrl(gitlabProvider, {
+        type: "issue",
+        number: 123,
+      })
+      assert.strictEqual(url, "https://gitlab.com/user/my-repo/-/issues/123")
+    })
+
+    test("Azure DevOps issue URL is unsupported", () => {
+      const url = getRemoteUrl(azureProvider, {
+        type: "issue",
+        number: 123,
+      })
+      assert.strictEqual(url, undefined)
+    })
+  })
+
+  suite("Pull request URLs", () => {
+    test("GitHub pull request URL", () => {
+      const url = getRemoteUrl(githubProvider, {
+        type: "pullRequest",
+        number: 123,
+      })
+      assert.strictEqual(url, "https://github.com/user/my-repo/pull/123")
+    })
+
+    test("GitLab merge request URL", () => {
+      const url = getRemoteUrl(gitlabProvider, {
+        type: "pullRequest",
+        number: 123,
+      })
+      assert.strictEqual(
+        url,
+        "https://gitlab.com/user/my-repo/-/merge_requests/123",
+      )
+    })
+
+    test("Bitbucket pull request URL", () => {
+      const url = getRemoteUrl(bitbucketProvider, {
+        type: "pullRequest",
+        number: 123,
+      })
+      assert.strictEqual(
+        url,
+        "https://bitbucket.org/user/my-repo/pull-requests/123",
+      )
+    })
+
+    test("Forgejo pull request URL", () => {
+      const url = getRemoteUrl(forgejoProvider, {
+        type: "pullRequest",
+        number: 123,
+      })
+      assert.strictEqual(url, "https://codeberg.org/user/my-repo/pulls/123")
     })
   })
 
@@ -154,8 +230,8 @@ suite("Remote URLs", () => {
       )
     })
 
-    test("Gitea file URL with branch", () => {
-      const url = getRemoteUrl(giteaProvider, {
+    test("Forgejo file URL with branch", () => {
+      const url = getRemoteUrl(forgejoProvider, {
         type: "file",
         fileName: "src/index.ts",
         branch: "main",
@@ -166,8 +242,8 @@ suite("Remote URLs", () => {
       )
     })
 
-    test("Gitea file URL with SHA", () => {
-      const url = getRemoteUrl(giteaProvider, {
+    test("Forgejo file URL with SHA", () => {
+      const url = getRemoteUrl(forgejoProvider, {
         type: "file",
         fileName: "src/index.ts",
         sha: "abc123",
@@ -252,8 +328,8 @@ suite("Remote URLs", () => {
       )
     })
 
-    test("Gitea file URL with tag", () => {
-      const url = getRemoteUrl(giteaProvider, {
+    test("Forgejo file URL with tag", () => {
+      const url = getRemoteUrl(forgejoProvider, {
         type: "file",
         fileName: "src/index.ts",
         tag: "v1.0.0",
@@ -339,6 +415,28 @@ suite("Remote URLs", () => {
       assert.strictEqual(
         url,
         "https://bitbucket.org/user/my-repo/commits/tag/v1.0.0",
+      )
+    })
+
+    test("Azure DevOps tag URL", () => {
+      const url = getRemoteUrl(azureProvider, {
+        type: "tag",
+        tag: "v1.0.0",
+      })
+      assert.strictEqual(
+        url,
+        "https://dev.azure.com/org/_git/my-repo?version=GTv1.0.0",
+      )
+    })
+
+    test("Forgejo tag URL", () => {
+      const url = getRemoteUrl(forgejoProvider, {
+        type: "tag",
+        tag: "v1.0.0",
+      })
+      assert.strictEqual(
+        url,
+        "https://codeberg.org/user/my-repo/src/tag/v1.0.0",
       )
     })
   })

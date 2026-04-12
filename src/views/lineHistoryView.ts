@@ -58,7 +58,14 @@ export class LineHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
           return [new MessageNode("No history found for selection")]
         }
         this.treeView.description = `${this.activeFilePath} L${this.activeSelection.start}-${this.activeSelection.end}`
-        return commits.map((c) => new CommitNode(c, this.activeRepoPath!))
+        const remoteProvider = (
+          await this.gitService
+            .getPreferredAutolinkRemote(this.activeRepoPath!)
+            .catch(() => undefined)
+        )?.provider
+        return commits.map(
+          (c) => new CommitNode(c, this.activeRepoPath!, { remoteProvider }),
+        )
       } catch {
         return [new MessageNode("Failed to load line history")]
       }

@@ -38,6 +38,8 @@ function makeGitServiceStub(overrides?: {
     getRepoPath: async () => repoPath,
     getCommits: async () => commits,
     getBranches: async () => branches,
+    getPreferredRemote: async () => undefined,
+    getPreferredAutolinkRemote: async () => undefined,
     getOutgoingCommitShasForBranch: async () => outgoingShas,
     onDidChange: (_listener: () => void) => ({ dispose: () => {} }),
   } as unknown as GitService
@@ -97,6 +99,8 @@ suite("CommitsView", () => {
       getBranches: async () => {
         throw new Error("tracking lookup failed")
       },
+      getPreferredRemote: async () => undefined,
+      getPreferredAutolinkRemote: async () => undefined,
       getOutgoingCommitShasForBranch: async () => [],
       onDidChange: (_listener: () => void) => ({ dispose: () => {} }),
     } as unknown as GitService)

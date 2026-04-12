@@ -19,11 +19,19 @@ import type {
   GitWorktree,
   GitFile,
   GitRemote,
+  RemoteProviderInfo,
 } from "../git/models"
 
 const REPO_PATH = "/test/repo"
 const TEST_DATE = new Date("2024-01-15T10:30:00Z")
 const TEST_SHA = "abc1234567890abcdef1234567890abcdef123456"
+const GITHUB_PROVIDER: RemoteProviderInfo = {
+  id: "github",
+  name: "GitHub",
+  domain: "github.com",
+  owner: "test",
+  repo: "repo",
+}
 
 function makeCommit(overrides?: Partial<GitCommit>): GitCommit {
   return {
@@ -136,10 +144,16 @@ suite("Nodes", () => {
 
   suite("CommitNode", () => {
     suite("tooltip", () => {
-      test("should be a MarkdownString with isTrusted true", () => {
+      test("should trust only GitLess command links", () => {
         const node = new CommitNode(makeCommit(), REPO_PATH)
         assert.ok(node.tooltip instanceof MarkdownString)
-        assert.strictEqual((node.tooltip as MarkdownString).isTrusted, true)
+        assert.deepStrictEqual((node.tooltip as MarkdownString).isTrusted, {
+          enabledCommands: [
+            Commands.CopySha,
+            Commands.CopyMessage,
+            Commands.OpenCommitOnRemote,
+          ],
+        })
       })
 
       test("should have supportThemeIcons enabled", () => {
@@ -215,6 +229,32 @@ suite("Nodes", () => {
         assert.ok(
           value.includes("Detailed description here."),
           "tooltip should contain the commit body",
+        )
+      })
+
+      test("should link autolinks in summary and body", () => {
+        const commit = makeCommit({
+          summary: "fix: close #123",
+          message:
+            "fix: close #123\n\nRefs test/other#45 and abc1234567890abcdef1234567890abcdef12345",
+        })
+        const node = new CommitNode(commit, REPO_PATH, {
+          remoteProvider: GITHUB_PROVIDER,
+        })
+        const value = tooltipValue(node.tooltip)!
+
+        assert.ok(
+          value.includes("[#123](https://github.com/test/repo/issues/123)"),
+        )
+        assert.ok(
+          value.includes(
+            "[test/other#45](https://github.com/test/other/issues/45)",
+          ),
+        )
+        assert.ok(
+          value.includes(
+            "[abc1234567890abcdef1234567890abcdef12345](https://github.com/test/repo/commit/abc1234567890abcdef1234567890abcdef12345)",
+          ),
         )
       })
 

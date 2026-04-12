@@ -50,12 +50,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
   async function getPreferredRemote(
     repoPath: string,
   ): Promise<GitRemote | undefined> {
-    const remotes = await gitService.getRemotes(repoPath)
-    // Prefer 'origin', then first remote with a provider
-    return (
-      remotes.find((r) => r.name === "origin" && r.provider) ??
-      remotes.find((r) => r.provider)
-    )
+    return gitService.getPreferredRemote(repoPath)
   }
 
   // Helper: get current file info from active editor

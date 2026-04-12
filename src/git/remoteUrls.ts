@@ -1,9 +1,19 @@
 import type { RemoteProviderInfo } from "./models"
 
-export type RemoteResourceType = "repo" | "commit" | "file" | "branch" | "tag"
+export type RemoteResourceType =
+  | "repo"
+  | "commit"
+  | "file"
+  | "branch"
+  | "tag"
+  | "issue"
+  | "pullRequest"
 
 export interface RemoteResource {
   type: RemoteResourceType
+  owner?: string
+  repo?: string
+  number?: string | number
   sha?: string
   branch?: string
   tag?: string
@@ -15,7 +25,7 @@ export function getRemoteUrl(
   provider: RemoteProviderInfo,
   resource: RemoteResource,
 ): string | undefined {
-  const baseUrl = getBaseUrl(provider)
+  const baseUrl = getBaseUrl(provider, resource)
   if (!baseUrl) return undefined
 
   switch (resource.type) {
@@ -29,17 +39,27 @@ export function getRemoteUrl(
       return getBranchUrl(provider, baseUrl, resource.branch!)
     case "tag":
       return getTagUrl(provider, baseUrl, resource.tag!)
+    case "issue":
+      return getIssueUrl(provider, baseUrl, resource.number)
+    case "pullRequest":
+      return getPullRequestUrl(provider, baseUrl, resource.number)
     default:
       return undefined
   }
 }
 
-function getBaseUrl(provider: RemoteProviderInfo): string {
+function getBaseUrl(
+  provider: RemoteProviderInfo,
+  resource?: RemoteResource,
+): string {
+  const owner = resource?.owner ?? provider.owner
+  const repo = resource?.repo ?? provider.repo
+
   switch (provider.id) {
     case "azure-devops":
-      return `https://${provider.domain}/${provider.owner}/_git/${provider.repo}`
+      return `https://${provider.domain}/${owner}/_git/${repo}`
     default:
-      return `https://${provider.domain}/${provider.owner}/${provider.repo}`
+      return `https://${provider.domain}/${owner}/${repo}`
   }
 }
 
@@ -76,7 +96,7 @@ function getFileUrl(
       const versionPrefix = tag ? "T" : branch ? "B" : "C"
       return `${baseUrl}?path=/${fileName}&version=G${versionPrefix}${ref}${lineFragment}`
     }
-    case "gitea":
+    case "forgejo":
       return `${baseUrl}/src/${sha ? "commit" : tag ? "tag" : "branch"}/${ref}/${fileName}${lineFragment}`
     case "github":
     default:
@@ -99,7 +119,7 @@ function getLineFragment(
       return end && end !== start
         ? `&line=${start}&lineEnd=${end}`
         : `&line=${start}`
-    case "gitea":
+    case "forgejo":
       return end && end !== start ? `#L${start}-L${end}` : `#L${start}`
     case "github":
     default:
@@ -119,7 +139,7 @@ function getBranchUrl(
       return `${baseUrl}/branch/${encodeURIComponent(branch)}`
     case "azure-devops":
       return `${baseUrl}?version=GB${encodeURIComponent(branch)}`
-    case "gitea":
+    case "forgejo":
       return `${baseUrl}/src/branch/${encodeURIComponent(branch)}`
     case "github":
     default:
@@ -139,10 +159,54 @@ function getTagUrl(
       return `${baseUrl}/commits/tag/${encodeURIComponent(tag)}`
     case "azure-devops":
       return `${baseUrl}?version=GT${encodeURIComponent(tag)}`
-    case "gitea":
-      return `${baseUrl}/releases/tag/${encodeURIComponent(tag)}`
+    case "forgejo":
+      return `${baseUrl}/src/tag/${encodeURIComponent(tag)}`
     case "github":
     default:
       return `${baseUrl}/releases/tag/${encodeURIComponent(tag)}`
+  }
+}
+
+function getIssueUrl(
+  provider: RemoteProviderInfo,
+  baseUrl: string,
+  number: string | number | undefined,
+): string | undefined {
+  if (number === undefined) return undefined
+
+  switch (provider.id) {
+    case "gitlab":
+      return `${baseUrl}/-/issues/${number}`
+    case "bitbucket":
+      return `${baseUrl}/issues/${number}`
+    case "forgejo":
+      return `${baseUrl}/issues/${number}`
+    case "github":
+      return `${baseUrl}/issues/${number}`
+    case "azure-devops":
+    default:
+      return undefined
+  }
+}
+
+function getPullRequestUrl(
+  provider: RemoteProviderInfo,
+  baseUrl: string,
+  number: string | number | undefined,
+): string | undefined {
+  if (number === undefined) return undefined
+
+  switch (provider.id) {
+    case "gitlab":
+      return `${baseUrl}/-/merge_requests/${number}`
+    case "bitbucket":
+      return `${baseUrl}/pull-requests/${number}`
+    case "azure-devops":
+      return `${baseUrl}/pullrequest/${number}`
+    case "forgejo":
+      return `${baseUrl}/pulls/${number}`
+    case "github":
+    default:
+      return `${baseUrl}/pull/${number}`
   }
 }
