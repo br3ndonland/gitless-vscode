@@ -720,7 +720,7 @@
     "build:dev": "node scripts/build.mjs --dev",
     "watch": "node scripts/build.mjs --watch",
     "test": "tsc -p tsconfig.test.json && vscode-test",
-    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e": "node tests/e2e/run.mjs",
     "lint": "prettier --check .",
     "lint:commits": "commitlint --from $(git rev-list --max-parents=0 HEAD) --to HEAD",
     "format": "prettier --write .",
@@ -762,7 +762,6 @@
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
-    "@playwright/test": "^1.59.1",
     "@semantic-release/changelog": "~6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/exec": "^7.1.0",

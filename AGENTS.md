@@ -12,6 +12,7 @@ GitLess is a minimal VSCode extension for Git integration. It provides a dedicat
 - Use Conventional Commits and Angular commit message conventions for all commit messages (e.g. `feat:`, `fix:`, `docs:`).
 - Use Prettier for formatting with `"semi": false` (no semicolons).
 - Use double quotes for strings.
+- Use ASCII characters in written output, code comments, commit messages, and documentation, except for box-drawing characters (`├`, `└`, `│`, `─`) in filesystem tree diagrams.
 - Do not create Git commits on `main`; always work on a feature branch.
 - Do not Git push to `main`; always push to a feature branch.
 

@@ -39,7 +39,6 @@ jobs:
       - run: pnpm run lint
       - run: pnpm run build
       - run: xvfb-run -a pnpm run test
-      - run: npx playwright install --with-deps chromium
       - run: xvfb-run -a pnpm run test:e2e
 
   release-dry-run:

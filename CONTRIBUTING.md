@@ -62,7 +62,7 @@ src/
 ├── container.ts        # Dependency injection container
 └── extension.ts        # Extension entry point (activate/deactivate)
 tests/
-└── e2e/                # End-to-end tests (Playwright)
+└── e2e/                # End-to-end tests (VS Code test host)
 ```
 
 ### Adding a New Command
@@ -102,7 +102,7 @@ Test files are located in `src/__tests__/` and follow the naming convention `*.t
 
 ### E2E Tests
 
-End-to-end tests use [Playwright](https://playwright.dev/).
+End-to-end tests use the VSCode test host via `@vscode/test-cli`.
 
 ```sh
 pnpm run test:e2e
@@ -146,9 +146,9 @@ Releases are fully automated with [semantic-release](https://github.com/semantic
 
 Version bumps follow [Semantic Versioning](https://semver.org/):
 
-- `fix:` commits → patch release (0.1.0 → 0.1.1)
-- `feat:` commits → minor release (0.1.0 → 0.2.0)
-- `BREAKING CHANGE:` in commit body/footer → major release (0.1.0 → 1.0.0)
+- `fix:` commits -> patch release (0.1.0 -> 0.1.1)
+- `feat:` commits -> minor release (0.1.0 -> 0.2.0)
+- `BREAKING CHANGE:` in commit body/footer -> major release (0.1.0 -> 1.0.0)
 
 No manual version bumps, tags, or changelog edits are needed.
 

@@ -161,8 +161,8 @@ pnpm run watch       # Watch mode
 ### Test
 
 ```sh
-pnpm run test        # Unit tests (runs in VS Code test host)
-pnpm run test:e2e    # E2E tests (Playwright)
+pnpm run test        # Unit tests (VS Code test host)
+pnpm run test:e2e    # E2E tests (VS Code test host)
 ```
 
 ### Lint and Format
