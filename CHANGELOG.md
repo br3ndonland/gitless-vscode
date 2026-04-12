@@ -1,5 +1,12 @@
 # Changelog
 
+# [0.5.0](https://github.com/br3ndonland/gitless-vscode/compare/0.4.2...0.5.0) (2026-04-12)
+
+### Features
+
+- autolink references in commit tooltips ([6cc234e](https://github.com/br3ndonland/gitless-vscode/commit/6cc234ef5d2117b242ee0df4bba45cbadeebc13e))
+- support searching by commit SHA ([0d452e6](https://github.com/br3ndonland/gitless-vscode/commit/0d452e6bcfe1b25d1844c9047ce03900494b6fb6))
+
 ## [0.4.2](https://github.com/br3ndonland/gitless-vscode/compare/0.4.1...0.4.2) (2026-04-12)
 
 ### Bug Fixes
