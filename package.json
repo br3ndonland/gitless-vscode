@@ -750,6 +750,9 @@
       }
     ]
   },
+  "vsce": {
+    "dependencies": false
+  },
   "pnpm": {
     "overrides": {
       "serialize-javascript": ">=7.0.3",
