@@ -533,7 +533,7 @@ export class GitService implements vscode.Disposable {
     }
 
     return [...candidatePaths]
-      .sort(comparePaths)
+      .sort(compareRepositoryCandidatePaths)
       .map((fsPath) => ({ fsPath, workspaceFolderName: folder.name }))
   }
 
@@ -726,10 +726,17 @@ function getGitMarkerPatterns(repositoryScanMaxDepth: number): string[] {
   }).flatMap((prefix) => [`${prefix}/.git`, `${prefix}/.git/HEAD`])
 }
 
-function comparePaths(a: string, b: string): number {
+function compareRepositoryCandidatePaths(a: string, b: string): number {
+  const depthDifference = getPathDepth(a) - getPathDepth(b)
+  if (depthDifference !== 0) return depthDifference
+
   if (a < b) return -1
   if (a > b) return 1
   return 0
+}
+
+function getPathDepth(fsPath: string): number {
+  return normalizeGitPath(fsPath).split("/").filter(Boolean).length
 }
 
 function sameRepositoryPaths(
