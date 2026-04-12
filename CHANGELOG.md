@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.2](https://github.com/br3ndonland/gitless-vscode/compare/0.4.1...0.4.2) (2026-04-12)
+
+### Bug Fixes
+
+- honor date display settings ([b8ce05c](https://github.com/br3ndonland/gitless-vscode/commit/b8ce05c6129b7d717dfb2ff8ea021c20d0f99b7d))
+
 ## [0.4.1](https://github.com/br3ndonland/gitless-vscode/compare/0.4.0...0.4.1) (2026-04-11)
 
 ### Bug Fixes
