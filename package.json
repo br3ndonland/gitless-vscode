@@ -725,9 +725,9 @@
     "lint:commits": "commitlint --from $(git rev-list --max-parents=0 HEAD) --to HEAD",
     "format": "prettier --write .",
     "format:changelog": "prettier --write CHANGELOG.md",
-    "package": "vsce package --no-dependencies --pre-release",
-    "publish:vsce": "vsce publish --no-dependencies --pre-release",
-    "publish:ovsx": "ovsx publish --no-dependencies --pre-release"
+    "package": "vsce package --no-dependencies",
+    "publish:vsce": "vsce publish --no-dependencies",
+    "publish:ovsx": "ovsx publish --no-dependencies"
   },
   "commitlint": {
     "extends": [
