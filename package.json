@@ -20,7 +20,7 @@
   "activationEvents": [
     "onStartupFinished"
   ],
-  "packageManager": "pnpm@10.7.0",
+  "packageManager": "pnpm@11.0.9",
   "contributes": {
     "commands": [
       {
@@ -752,14 +752,6 @@
   },
   "vsce": {
     "dependencies": false
-  },
-  "pnpm": {
-    "overrides": {
-      "diff": ">=8.0.3",
-      "fast-uri": "^3.1.2",
-      "follow-redirects": "^1.16.0",
-      "serialize-javascript": ">=7.0.3"
-    }
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.3",
