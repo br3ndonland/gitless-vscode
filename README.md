@@ -153,7 +153,7 @@ Set custom values in your VS Code `settings.json`:
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) 22+
+- [Node.js](https://nodejs.org/) 24+
 - [pnpm](https://pnpm.io/) 11+
 
 ### Setup

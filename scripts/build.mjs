@@ -15,7 +15,7 @@ const buildOptions = {
   external: ["vscode"],
   format: "cjs",
   platform: "node",
-  target: "node22",
+  target: "node24",
   sourcemap: values.dev || values.watch,
   minify: !values.dev && !values.watch,
   logLevel: "info",
