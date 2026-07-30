@@ -367,11 +367,20 @@ suite("Nodes", () => {
           value.includes("Status: outgoing to origin/main"),
           "tooltip should include outgoing status",
         )
-        assert.ok(node.iconPath instanceof ThemeIcon)
-        assert.strictEqual((node.iconPath as ThemeIcon).id, "git-commit")
-        assert.strictEqual(
-          (node.iconPath as ThemeIcon).color?.id,
-          "gitDecoration.addedResourceForeground",
+        assert.ok(!(node.iconPath instanceof ThemeIcon))
+        const iconPath = node.iconPath as {
+          light: { fsPath: string }
+          dark: { fsPath: string }
+        }
+        assert.ok(
+          iconPath.light.fsPath.endsWith(
+            "/images/icons/light/git-commit-outgoing.svg",
+          ),
+        )
+        assert.ok(
+          iconPath.dark.fsPath.endsWith(
+            "/images/icons/dark/git-commit-outgoing.svg",
+          ),
         )
       })
 

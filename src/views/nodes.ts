@@ -19,6 +19,31 @@ import { formatDate, shortenSha } from "../config"
  * without conflicting with real workspace file decorations. */
 export const FILE_NODE_URI_SCHEME = "gitless-file"
 
+// VS Code forces selected Codicons to the list selection foreground. Use an
+// image-backed icon so the outgoing state stays green while selected.
+const OUTGOING_COMMIT_ICON_PATH = {
+  light: vscode.Uri.file(
+    path.join(
+      __dirname,
+      "..",
+      "images",
+      "icons",
+      "light",
+      "git-commit-outgoing.svg",
+    ),
+  ),
+  dark: vscode.Uri.file(
+    path.join(
+      __dirname,
+      "..",
+      "images",
+      "icons",
+      "dark",
+      "git-commit-outgoing.svg",
+    ),
+  ),
+}
+
 export interface CommitNodeOptions {
   outgoing?: boolean
   remoteProvider?: RemoteProviderInfo
@@ -104,12 +129,9 @@ export class CommitNode extends ViewNode {
       ],
     }
     this.tooltip.supportThemeIcons = true
-    this.iconPath = new vscode.ThemeIcon(
-      "git-commit",
-      this.outgoing
-        ? new vscode.ThemeColor("gitDecoration.addedResourceForeground")
-        : undefined,
-    )
+    this.iconPath = this.outgoing
+      ? OUTGOING_COMMIT_ICON_PATH
+      : new vscode.ThemeIcon("git-commit")
     this.id = `commit:${repoPath}:${commit.sha}`
   }
 }
