@@ -9,12 +9,7 @@ import { TagsView } from "./tagsView"
 import { WorktreesView } from "./worktreesView"
 
 export type GroupedViewType =
-  | "commits"
-  | "branches"
-  | "remotes"
-  | "stashes"
-  | "tags"
-  | "worktrees"
+  "commits" | "branches" | "remotes" | "stashes" | "tags" | "worktrees"
 
 type SubView =
   | CommitsView

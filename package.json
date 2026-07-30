@@ -10,7 +10,7 @@
     "url": "https://github.com/br3ndonland/gitless-vscode"
   },
   "engines": {
-    "vscode": "^1.118.0"
+    "vscode": "^1.125.0"
   },
   "categories": [
     "SCM Providers"
@@ -761,21 +761,21 @@
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^10.0.1",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^24.12.3",
-    "@types/vscode": "^1.118.0",
+    "@types/node": "^24.13.3",
+    "@types/vscode": "^1.125.0",
     "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
-    "@vscode/vsce": "^3.9.1",
+    "@vscode/vsce": "^3.9.2",
     "esbuild": "^0.25.12",
     "esbuild-register": "^3.6.0",
-    "mocha": "^11.7.5",
+    "mocha": "^11.7.6",
     "ovsx": "^0.10.12",
-    "prettier": "^3.8.3",
-    "semantic-release": "^25.0.3",
-    "semantic-release-vsce": "~6.1.5",
+    "prettier": "^3.9.6",
+    "semantic-release": "^25.0.8",
+    "semantic-release-vsce": "~6.1.6",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "dayjs": "^1.11.20"
+    "dayjs": "^1.11.21"
   }
 }

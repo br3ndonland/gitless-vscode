@@ -70,8 +70,7 @@ suite("GitFileDecorationProvider", () => {
       const d = provider.provideFileDecoration(makeFileNodeUri("added"))
       assert.ok(d)
       const color = (d as import("vscode").FileDecoration).color as
-        | import("vscode").ThemeColor
-        | undefined
+        import("vscode").ThemeColor | undefined
       assert.ok(color)
       assert.strictEqual(
         (color as { id: string }).id,
@@ -100,8 +99,7 @@ suite("GitFileDecorationProvider", () => {
       const d = provider.provideFileDecoration(makeFileNodeUri("modified"))
       assert.ok(d)
       const color = (d as import("vscode").FileDecoration).color as
-        | import("vscode").ThemeColor
-        | undefined
+        import("vscode").ThemeColor | undefined
       assert.ok(color)
       assert.strictEqual(
         (color as { id: string }).id,
@@ -130,8 +128,7 @@ suite("GitFileDecorationProvider", () => {
       const d = provider.provideFileDecoration(makeFileNodeUri("deleted"))
       assert.ok(d)
       const color = (d as import("vscode").FileDecoration).color as
-        | import("vscode").ThemeColor
-        | undefined
+        import("vscode").ThemeColor | undefined
       assert.ok(color)
       assert.strictEqual(
         (color as { id: string }).id,
@@ -160,8 +157,7 @@ suite("GitFileDecorationProvider", () => {
       const d = provider.provideFileDecoration(makeFileNodeUri("renamed"))
       assert.ok(d)
       const color = (d as import("vscode").FileDecoration).color as
-        | import("vscode").ThemeColor
-        | undefined
+        import("vscode").ThemeColor | undefined
       assert.ok(color)
       assert.strictEqual(
         (color as { id: string }).id,
@@ -190,8 +186,7 @@ suite("GitFileDecorationProvider", () => {
       const d = provider.provideFileDecoration(makeFileNodeUri("copied"))
       assert.ok(d)
       const color = (d as import("vscode").FileDecoration).color as
-        | import("vscode").ThemeColor
-        | undefined
+        import("vscode").ThemeColor | undefined
       assert.ok(color)
       assert.strictEqual(
         (color as { id: string }).id,
@@ -220,8 +215,7 @@ suite("GitFileDecorationProvider", () => {
       const d = provider.provideFileDecoration(makeFileNodeUri("untracked"))
       assert.ok(d)
       const color = (d as import("vscode").FileDecoration).color as
-        | import("vscode").ThemeColor
-        | undefined
+        import("vscode").ThemeColor | undefined
       assert.ok(color)
       assert.strictEqual(
         (color as { id: string }).id,

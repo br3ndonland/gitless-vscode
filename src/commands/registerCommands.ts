@@ -322,8 +322,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
   register(Commands.OpenFileAtRevision, async (...args: unknown[]) => {
     const node = args[0] as
-      | { sha?: string; filePath?: string; repoPath?: string }
-      | undefined
+      { sha?: string; filePath?: string; repoPath?: string } | undefined
     if (!node?.sha || !node?.filePath || !node?.repoPath) return
 
     const uri = makeRevisionUri(node.repoPath, node.filePath, node.sha)
@@ -365,8 +364,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
   register(Commands.OpenChangesWithWorking, async (...args: unknown[]) => {
     const node = args[0] as
-      | { sha?: string; filePath?: string; repoPath?: string }
-      | undefined
+      { sha?: string; filePath?: string; repoPath?: string } | undefined
     if (!node?.sha || !node?.filePath || !node?.repoPath) return
 
     const revisionUri = makeRevisionUri(node.repoPath, node.filePath, node.sha)
@@ -529,8 +527,7 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
 
   register(Commands.CopyTagMessage, async (...args: unknown[]) => {
     const node = args[0] as
-      | { message?: string; annotation?: string }
-      | undefined
+      { message?: string; annotation?: string } | undefined
     const message = node?.annotation ?? node?.message
     if (message) {
       await copyToClipboard(message, "tag message")

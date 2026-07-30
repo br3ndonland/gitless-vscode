@@ -1,13 +1,7 @@
 import type { RemoteProviderInfo } from "./models"
 
 export type RemoteResourceType =
-  | "repo"
-  | "commit"
-  | "file"
-  | "branch"
-  | "tag"
-  | "issue"
-  | "pullRequest"
+  "repo" | "commit" | "file" | "branch" | "tag" | "issue" | "pullRequest"
 
 export interface RemoteResource {
   type: RemoteResourceType

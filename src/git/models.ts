@@ -48,11 +48,7 @@ export interface RemoteProviderInfo {
 }
 
 export type RemoteProviderId =
-  | "github"
-  | "gitlab"
-  | "bitbucket"
-  | "azure-devops"
-  | "forgejo"
+  "github" | "gitlab" | "bitbucket" | "azure-devops" | "forgejo"
 
 export interface GitTag {
   name: string
@@ -88,12 +84,7 @@ export interface GitFile {
 }
 
 export type GitFileStatus =
-  | "added"
-  | "modified"
-  | "deleted"
-  | "renamed"
-  | "copied"
-  | "untracked"
+  "added" | "modified" | "deleted" | "renamed" | "copied" | "untracked"
 
 export interface GitDiff {
   files: GitFile[]
