@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/br3ndonland/gitless-vscode/compare/0.5.0...0.5.1) (2026-07-31)
+
+### Bug Fixes
+
+- preserve outgoing commit icon color ([8c8d835](https://github.com/br3ndonland/gitless-vscode/commit/8c8d8357b9b258353abdef95b1c29fa4ce9d6a6f))
+- show changed files in line history ([73d81db](https://github.com/br3ndonland/gitless-vscode/commit/73d81db9317c0e40c81445969682fd133c1c1f53))
+
 # [0.5.0](https://github.com/br3ndonland/gitless-vscode/compare/0.4.2...0.5.0) (2026-04-12)
 
 ### Features
