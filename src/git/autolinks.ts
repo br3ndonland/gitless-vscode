@@ -142,7 +142,7 @@ function linkifyPlainText(
   provider: RemoteProviderInfo | undefined,
 ): string {
   const tokens: LinkTokenMap = new Map()
-  let result = linkifyRawUrls(text, tokens)
+  let result = linkifyRawUrls(text, provider, tokens)
 
   if (provider) {
     result = linkifyIssues(result, provider, tokens)
@@ -153,12 +153,61 @@ function linkifyPlainText(
   return restoreTokens(result, tokens)
 }
 
-function linkifyRawUrls(text: string, tokens: LinkTokenMap): string {
+function linkifyRawUrls(
+  text: string,
+  provider: RemoteProviderInfo | undefined,
+  tokens: LinkTokenMap,
+): string {
   return text.replace(RAW_URL_REGEX, (rawUrl) => {
     const trailing = rawUrl.match(TRAILING_URL_PUNCTUATION_REGEX)?.[0] ?? ""
     const url = trailing ? rawUrl.slice(0, -trailing.length) : rawUrl
-    return createToken(tokens, markdownLink(url, url)) + trailing
+    const linkText = getGitHubUrlLinkText(url, provider) ?? url
+    return createToken(tokens, markdownLink(linkText, url)) + trailing
   })
+}
+
+function getGitHubUrlLinkText(
+  url: string,
+  provider: RemoteProviderInfo | undefined,
+): string | undefined {
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(url)
+  } catch {
+    return undefined
+  }
+
+  const domain = parsedUrl.hostname.toLowerCase()
+  const isGitHubDomain =
+    domain === "github.com" ||
+    (provider?.id === "github" && domain === provider.domain.toLowerCase())
+  if (!isGitHubDomain) return undefined
+
+  const pathParts = parsedUrl.pathname.split("/").filter(Boolean)
+  if (pathParts.length !== 4) return undefined
+
+  const [owner, repo, resourceType, identifier] = pathParts
+  const sameRepository =
+    provider?.id === "github" &&
+    domain === provider.domain.toLowerCase() &&
+    owner.toLowerCase() === provider.owner.toLowerCase() &&
+    repo.toLowerCase() === provider.repo.toLowerCase()
+  const repoPrefix = sameRepository ? "" : `${owner}/${repo}`
+
+  if (
+    (resourceType === "issues" || resourceType === "pull") &&
+    /^\d+$/.test(identifier)
+  ) {
+    return `${repoPrefix}#${identifier}`
+  }
+
+  if (resourceType === "commit" && /^[0-9a-f]{7,40}$/i.test(identifier)) {
+    return repoPrefix
+      ? `${repoPrefix}@${identifier.slice(0, 7)}`
+      : identifier.slice(0, 7)
+  }
+
+  return undefined
 }
 
 function linkifyIssues(

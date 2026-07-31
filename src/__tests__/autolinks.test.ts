@@ -35,6 +35,36 @@ suite("Autolinks", () => {
     )
   })
 
+  test("should shorten GitHub issue and pull request URLs", () => {
+    assert.strictEqual(
+      linkifyAutolinks(
+        "Fix https://github.com/user/my-repo/issues/12 and https://github.com/user/my-repo/pull/34.",
+        githubProvider,
+      ),
+      "Fix [#12](https://github.com/user/my-repo/issues/12) and [#34](https://github.com/user/my-repo/pull/34).",
+    )
+  })
+
+  test("should qualify cross-repo GitHub URLs", () => {
+    assert.strictEqual(
+      linkifyAutolinks(
+        "Refs https://github.com/other/repo/pull/5 and https://github.com/other/repo/commit/abc1234567890.",
+        githubProvider,
+      ),
+      "Refs [other/repo#5](https://github.com/other/repo/pull/5) and [other/repo@abc1234](https://github.com/other/repo/commit/abc1234567890).",
+    )
+  })
+
+  test("should shorten GitHub commit URLs", () => {
+    assert.strictEqual(
+      linkifyAutolinks(
+        "See https://github.com/user/my-repo/commit/abc1234567890",
+        githubProvider,
+      ),
+      "See [abc1234](https://github.com/user/my-repo/commit/abc1234567890)",
+    )
+  })
+
   test("should link all-numeric bare short commit references", () => {
     assert.strictEqual(
       linkifyAutolinks("Refs 1765166", githubProvider),

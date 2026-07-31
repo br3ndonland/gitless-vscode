@@ -62,7 +62,7 @@ Hover over a commit to reveal inline buttons:
 
 Commit tooltips autolink common references in commit summaries and bodies, including:
 
-- Raw `http` and `https` URLs
+- Raw `http` and `https` URLs, with GitHub issue, pull request, and commit URLs shortened like their shorthand references
 - Commit references, including short SHAs (`a05b1ad`, `1765166`), full SHAs, and `owner/repo@SHA`
 - [GitHub autolinked references](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls) like `GH-123`, `#123`, and `owner/repo#123`
 - [GitLab crosslinks](https://docs.gitlab.com/user/project/issues/crosslinking_issues/) like `GL-123`, `!123`, and `owner/repo!123`
