@@ -1,6 +1,6 @@
 import * as vscode from "vscode"
 import type { GitService } from "../git/gitService"
-import { CommitNode, MessageNode } from "./nodes"
+import { CommitNode, FileNode, MessageNode } from "./nodes"
 import { ViewIds } from "../constants"
 
 export class LineHistoryView implements vscode.TreeDataProvider<vscode.TreeItem> {
@@ -44,6 +44,18 @@ export class LineHistoryView implements vscode.TreeDataProvider<vscode.TreeItem>
 
     if (!this.activeFilePath || !this.activeSelection) {
       return [new MessageNode("Select lines to see their history")]
+    }
+
+    if (element instanceof CommitNode) {
+      try {
+        const files = await this.gitService.getCommitFiles(
+          element.repoPath,
+          element.sha,
+        )
+        return files.map((f) => new FileNode(f, element.sha, element.repoPath))
+      } catch {
+        return [new MessageNode("Failed to load files")]
+      }
     }
 
     if (!element) {
