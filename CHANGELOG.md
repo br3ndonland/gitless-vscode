@@ -1,5 +1,11 @@
 # Changelog
 
+# [0.6.0](https://github.com/br3ndonland/gitless-vscode/compare/0.5.2...0.6.0) (2026-07-31)
+
+### Features
+
+- add stash actions ([e70f792](https://github.com/br3ndonland/gitless-vscode/commit/e70f792511506822e6211a5c70e55b2c80d77a6f))
+
 ## [0.5.2](https://github.com/br3ndonland/gitless-vscode/compare/0.5.1...0.5.2) (2026-07-31)
 
 ### Bug Fixes
