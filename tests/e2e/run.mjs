@@ -8,7 +8,7 @@ let exitCode = 0
 
 try {
   await runCommand(process.execPath, ["tests/e2e/setup-fixture.mjs"])
-  await runCommand("tsc", ["-p", "tsconfig.test.json"])
+  await runCommand("tsc", ["-p", "src/__tests__/tsconfig.json"])
   await runCommand("vscode-test", ["--config", ".vscode-test.e2e.mjs"])
 } catch (err) {
   exitCode = 1
