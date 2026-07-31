@@ -124,6 +124,26 @@
         "icon": "$(copy)"
       },
       {
+        "command": "gitless.applyStash",
+        "title": "GitLess: Apply stash",
+        "icon": "$(check)"
+      },
+      {
+        "command": "gitless.popStash",
+        "title": "GitLess: Pop stash",
+        "icon": "$(move)"
+      },
+      {
+        "command": "gitless.createBranchFromStash",
+        "title": "GitLess: Create branch from stash...",
+        "icon": "$(git-branch)"
+      },
+      {
+        "command": "gitless.dropStash",
+        "title": "GitLess: Drop stash",
+        "icon": "$(trash)"
+      },
+      {
         "command": "gitless.openAllChanges",
         "title": "GitLess: Open all changes",
         "icon": "$(link-external)"
@@ -500,6 +520,31 @@
           "group": "1_copy@2"
         },
         {
+          "command": "gitless.applyStash",
+          "when": "viewItem =~ /gitless:stash\\b/",
+          "group": "inline@1"
+        },
+        {
+          "command": "gitless.applyStash",
+          "when": "viewItem =~ /gitless:stash\\b/",
+          "group": "1_actions@1"
+        },
+        {
+          "command": "gitless.popStash",
+          "when": "viewItem =~ /gitless:stash\\b/",
+          "group": "1_actions@2"
+        },
+        {
+          "command": "gitless.createBranchFromStash",
+          "when": "viewItem =~ /gitless:stash\\b/",
+          "group": "1_actions@3"
+        },
+        {
+          "command": "gitless.dropStash",
+          "when": "viewItem =~ /gitless:stash\\b/",
+          "group": "2_danger@1"
+        },
+        {
           "command": "gitless.copyRemoteRepoUrl",
           "when": "viewItem =~ /gitless:remote\\b/",
           "group": "1_copy@1"
@@ -591,6 +636,22 @@
         },
         {
           "command": "gitless.copyTagMessage",
+          "when": "false"
+        },
+        {
+          "command": "gitless.applyStash",
+          "when": "false"
+        },
+        {
+          "command": "gitless.popStash",
+          "when": "false"
+        },
+        {
+          "command": "gitless.createBranchFromStash",
+          "when": "false"
+        },
+        {
+          "command": "gitless.dropStash",
           "when": "false"
         },
         {

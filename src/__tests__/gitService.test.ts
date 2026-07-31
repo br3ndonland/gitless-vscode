@@ -212,6 +212,27 @@ function createStashFilesService(overrides?: {
   return { service, calls }
 }
 
+function createStashActionService(): {
+  service: GitService
+  calls: Array<{ args: GitExecArgs; cwd: string }>
+} {
+  const calls: Array<{ args: GitExecArgs; cwd: string }> = []
+  const service = new GitService({
+    async gitExec(
+      args: GitExecArgs,
+      options: { cwd: string },
+    ): Promise<string> {
+      calls.push({ args: [...args], cwd: options.cwd })
+      return ""
+    },
+    workspace: createWorkspaceStub([]).stub,
+    window: createWindowStub().stub,
+    commands: createCommandsStub(),
+  })
+
+  return { service, calls }
+}
+
 function createSearchCommitByShaService(overrides?: {
   revParseOutput?: string
   revParseError?: Error
@@ -372,6 +393,55 @@ function normalizePath(filePath: string): string {
 }
 
 suite("GitService", () => {
+  suite("stash actions", () => {
+    const cases: Array<{
+      name: string
+      expectedArgs: string[]
+      run: (service: GitService) => Promise<void>
+    }> = [
+      {
+        name: "apply",
+        expectedArgs: ["stash", "apply", "stash@{2}"],
+        run: (service) => service.applyStash(REPO_A, 2),
+      },
+      {
+        name: "pop",
+        expectedArgs: ["stash", "pop", "stash@{2}"],
+        run: (service) => service.popStash(REPO_A, 2),
+      },
+      {
+        name: "branch",
+        expectedArgs: ["stash", "branch", "feature/stashed", "stash@{2}"],
+        run: (service) =>
+          service.createBranchFromStash(REPO_A, 2, "feature/stashed"),
+      },
+      {
+        name: "drop",
+        expectedArgs: ["stash", "drop", "stash@{2}"],
+        run: (service) => service.dropStash(REPO_A, 2),
+      },
+    ]
+
+    for (const action of cases) {
+      test(`should run git stash ${action.name} and notify views`, async () => {
+        const { service, calls } = createStashActionService()
+        let changeCount = 0
+        service.onDidChange(() => {
+          changeCount += 1
+        })
+
+        await action.run(service)
+
+        assert.deepStrictEqual(calls, [
+          { args: action.expectedArgs, cwd: REPO_A },
+        ])
+        assert.strictEqual(changeCount, 1)
+
+        service.dispose()
+      })
+    }
+  })
+
   suite("getStashFiles", () => {
     test("should use stash show rather than diff-tree", async () => {
       const { service, calls } = createStashFilesService({

@@ -536,6 +536,98 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
     }
   })
 
+  register(Commands.ApplyStash, async (...args: unknown[]) => {
+    const node = args[0] as
+      { stashIndex?: number; repoPath?: string } | undefined
+    if (node?.stashIndex === undefined || !node.repoPath) return
+
+    try {
+      await gitService.applyStash(node.repoPath, node.stashIndex)
+      vscode.window.setStatusBarMessage(
+        `$(check) Applied stash@{${node.stashIndex}}`,
+        3000,
+      )
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `Failed to apply stash: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  })
+
+  register(Commands.PopStash, async (...args: unknown[]) => {
+    const node = args[0] as
+      { stashIndex?: number; repoPath?: string } | undefined
+    if (node?.stashIndex === undefined || !node.repoPath) return
+
+    try {
+      await gitService.popStash(node.repoPath, node.stashIndex)
+      vscode.window.setStatusBarMessage(
+        `$(check) Popped stash@{${node.stashIndex}}`,
+        3000,
+      )
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `Failed to pop stash: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  })
+
+  register(Commands.CreateBranchFromStash, async (...args: unknown[]) => {
+    const node = args[0] as
+      { stashIndex?: number; repoPath?: string } | undefined
+    if (node?.stashIndex === undefined || !node.repoPath) return
+
+    const branchName = await vscode.window.showInputBox({
+      prompt: `Create a branch from stash@{${node.stashIndex}}`,
+      placeHolder: "Branch name",
+      ignoreFocusOut: true,
+      validateInput: (value) =>
+        value.trim() ? undefined : "Branch name is required",
+    })
+    if (!branchName) return
+
+    try {
+      await gitService.createBranchFromStash(
+        node.repoPath,
+        node.stashIndex,
+        branchName.trim(),
+      )
+      vscode.window.setStatusBarMessage(
+        `$(check) Created branch '${branchName.trim()}' from stash`,
+        3000,
+      )
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `Failed to create branch from stash: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  })
+
+  register(Commands.DropStash, async (...args: unknown[]) => {
+    const node = args[0] as
+      { stashIndex?: number; repoPath?: string } | undefined
+    if (node?.stashIndex === undefined || !node.repoPath) return
+
+    const confirmation = await vscode.window.showWarningMessage(
+      `Drop stash@{${node.stashIndex}}? This cannot be undone.`,
+      { modal: true },
+      "Drop Stash",
+    )
+    if (confirmation !== "Drop Stash") return
+
+    try {
+      await gitService.dropStash(node.repoPath, node.stashIndex)
+      vscode.window.setStatusBarMessage(
+        `$(check) Dropped stash@{${node.stashIndex}}`,
+        3000,
+      )
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `Failed to drop stash: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  })
+
   register(Commands.OpenAllChanges, async (...args: unknown[]) => {
     const node = args[0] as { sha?: string; repoPath?: string } | undefined
     if (!node?.sha || !node?.repoPath) return

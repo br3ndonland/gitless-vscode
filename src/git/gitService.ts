@@ -380,12 +380,32 @@ export class GitService implements vscode.Disposable {
     await this.gitExec(["stash", "apply", `stash@{${index}}`], {
       cwd: repoPath,
     })
+    this._onDidChange.fire()
+  }
+
+  async popStash(repoPath: string, index: number): Promise<void> {
+    await this.gitExec(["stash", "pop", `stash@{${index}}`], {
+      cwd: repoPath,
+    })
+    this._onDidChange.fire()
+  }
+
+  async createBranchFromStash(
+    repoPath: string,
+    index: number,
+    branchName: string,
+  ): Promise<void> {
+    await this.gitExec(["stash", "branch", branchName, `stash@{${index}}`], {
+      cwd: repoPath,
+    })
+    this._onDidChange.fire()
   }
 
   async dropStash(repoPath: string, index: number): Promise<void> {
     await this.gitExec(["stash", "drop", `stash@{${index}}`], {
       cwd: repoPath,
     })
+    this._onDidChange.fire()
   }
 
   async diff(

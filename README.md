@@ -46,7 +46,7 @@ GitLess adds a grouped section to the Source Control panel with toggle buttons t
 - **Tags** - Browse tags and their associated commits
 - **Branches** - View local and remote branches and inspect recent commits
 - **Remotes** - Inspect configured remotes and remote branches
-- **Stashes** - Inspect stashed changes
+- **Stashes** - Inspect, apply, pop, branch from, and drop stashed changes
 - **Worktrees** - View Git worktrees and inspect recent commits
 
 #### Commit Hover Actions
@@ -96,7 +96,7 @@ Right-click on items for additional actions:
 - **Files**: Share > Copy link to commit, Copy link to commit at revision, Copy remote file URL, Copy remote file URL at revision
 - **Tags**: Copy tag name, Copy tag message
 - **Branches**: Compare with HEAD, Share > Copy link to repository
-- **Stashes**: Copy SHA, Copy message
+- **Stashes**: Apply, pop, create branch, drop, copy SHA, copy message
 - **Remotes**: Copy link to repository, Open current file on remote
 
 ### GitLess Inspect Panel
