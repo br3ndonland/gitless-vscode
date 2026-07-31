@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/br3ndonland/gitless-vscode/compare/0.5.1...0.5.2) (2026-07-31)
+
+### Bug Fixes
+
+- add security advisory autolinks ([4eaa70b](https://github.com/br3ndonland/gitless-vscode/commit/4eaa70b1681031105096555f3aa837c358744930))
+- shorten GitHub URLs with autolink format ([a1f2893](https://github.com/br3ndonland/gitless-vscode/commit/a1f289325a4dafca4f3977ae21f2c5ac3e142f32))
+
 ## [0.5.1](https://github.com/br3ndonland/gitless-vscode/compare/0.5.0...0.5.1) (2026-07-31)
 
 ### Bug Fixes
