@@ -15,6 +15,9 @@ const CROSS_REPO_PULL_REQUEST_REGEX =
   /(^|[^\w/.-])([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)!(\d+)\b/g
 const GITHUB_ISSUE_REGEX = /(^|[^\w-])(GH-(\d+))\b/gi
 const GITLAB_ISSUE_REGEX = /(^|[^\w-])(GL-(\d+))\b/gi
+const GITHUB_SECURITY_ADVISORY_REGEX =
+  /(^|[^\w-])(GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4})\b/gi
+const CVE_REGEX = /(^|[^\w-])(CVE-\d{4}-\d{4,})\b/gi
 const ISSUE_REGEX = /(^|[^\w/#])#(\d+)\b/g
 const PULL_REQUEST_REGEX = /(^|[^\w!])!(\d+)\b/g
 const CROSS_REPO_SHA_REGEX =
@@ -145,12 +148,41 @@ function linkifyPlainText(
   let result = linkifyRawUrls(text, provider, tokens)
 
   if (provider) {
+    result = linkifySecurityAdvisories(result, provider, tokens)
     result = linkifyIssues(result, provider, tokens)
     result = linkifyPullRequests(result, provider, tokens)
     result = linkifyShas(result, provider, tokens)
   }
 
   return restoreTokens(result, tokens)
+}
+
+function linkifySecurityAdvisories(
+  text: string,
+  provider: RemoteProviderInfo,
+  tokens: LinkTokenMap,
+): string {
+  if (provider.id !== "github") return text
+
+  let result = text.replace(
+    GITHUB_SECURITY_ADVISORY_REGEX,
+    (_match, prefix: string, linkText: string) => {
+      const id = `GHSA-${linkText.slice(5).toLowerCase()}`
+      const url = `https://github.com/advisories/${id}`
+      return `${prefix}${createToken(tokens, markdownLink(linkText, url))}`
+    },
+  )
+
+  result = result.replace(
+    CVE_REGEX,
+    (_match, prefix: string, linkText: string) => {
+      const id = linkText.toUpperCase()
+      const url = `https://github.com/advisories?query=${id}`
+      return `${prefix}${createToken(tokens, markdownLink(linkText, url))}`
+    },
+  )
+
+  return result
 }
 
 function linkifyRawUrls(

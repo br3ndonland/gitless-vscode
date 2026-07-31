@@ -91,6 +91,32 @@ suite("Autolinks", () => {
     )
   })
 
+  test("should link GitHub security advisory references", () => {
+    assert.strictEqual(
+      linkifyAutolinks(
+        "Resolves GHSA-q3j6-qgpj-74h6/CVE-2026-6321",
+        githubProvider,
+      ),
+      "Resolves [GHSA-q3j6-qgpj-74h6](https://github.com/advisories/GHSA-q3j6-qgpj-74h6)/[CVE-2026-6321](https://github.com/advisories?query=CVE-2026-6321)",
+    )
+  })
+
+  test("should only link security advisories for GitHub remotes", () => {
+    const references = "GHSA-q3j6-qgpj-74h6 and CVE-2026-6321"
+
+    assert.strictEqual(linkifyAutolinks(references, gitlabProvider), references)
+  })
+
+  test("should not link malformed security advisory references", () => {
+    assert.strictEqual(
+      linkifyAutolinks(
+        "GHSA-abcd-efgh-ijk CVE-2026-123 and XGHSA-abcd-efgh-ijkl",
+        githubProvider,
+      ),
+      "GHSA-abcd-efgh-ijk CVE-2026-123 and XGHSA-abcd-efgh-ijkl",
+    )
+  })
+
   test("should link GitHub cross-repo issue references", () => {
     assert.strictEqual(
       linkifyAutolinks("Fix other/repo#5", githubProvider),

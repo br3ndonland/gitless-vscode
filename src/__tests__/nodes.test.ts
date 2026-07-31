@@ -236,7 +236,7 @@ suite("Nodes", () => {
         const commit = makeCommit({
           summary: "fix: close #123",
           message:
-            "fix: close #123\n\nRefs test/other#45 and abc1234567890abcdef1234567890abcdef12345",
+            "fix: close #123\n\nRefs test/other#45, GHSA-q3j6-qgpj-74h6/CVE-2026-6321, and abc1234567890abcdef1234567890abcdef12345",
         })
         const node = new CommitNode(commit, REPO_PATH, {
           remoteProvider: GITHUB_PROVIDER,
@@ -249,6 +249,11 @@ suite("Nodes", () => {
         assert.ok(
           value.includes(
             "[test/other#45](https://github.com/test/other/issues/45)",
+          ),
+        )
+        assert.ok(
+          value.includes(
+            "[GHSA-q3j6-qgpj-74h6](https://github.com/advisories/GHSA-q3j6-qgpj-74h6)/[CVE-2026-6321](https://github.com/advisories?query=CVE-2026-6321)",
           ),
         )
         assert.ok(

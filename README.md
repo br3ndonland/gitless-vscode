@@ -65,6 +65,7 @@ Commit tooltips autolink common references in commit summaries and bodies, inclu
 - Raw `http` and `https` URLs, with GitHub issue, pull request, and commit URLs shortened like their shorthand references
 - Commit references, including short SHAs (`a05b1ad`, `1765166`), full SHAs, and `owner/repo@SHA`
 - [GitHub autolinked references](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/autolinked-references-and-urls) like `GH-123`, `#123`, and `owner/repo#123`
+- [GitHub security advisories](https://docs.github.com/en/code-security/how-tos/report-and-fix-vulnerabilities/fix-reported-vulnerabilities/browse-advisory-database) like `GHSA-q3j6-qgpj-74h6` and `CVE-2026-6321`
 - [GitLab crosslinks](https://docs.gitlab.com/user/project/issues/crosslinking_issues/) like `GL-123`, `!123`, and `owner/repo!123`
 - [Forgejo](https://forgejo.org/docs/latest/user/linked-references/) and [Codeberg](https://docs.codeberg.org/markdown/introduction-to-markdown/) references
 
