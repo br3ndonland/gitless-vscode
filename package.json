@@ -17,6 +17,12 @@
   ],
   "icon": "images/logo.png",
   "main": "./dist/extension.js",
+  "extensionDependencies": [
+    "vscode.git"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -739,7 +745,8 @@
         "gitless.repositoryScanMaxDepth": {
           "type": "number",
           "default": 1,
-          "markdownDescription": "Controls how many levels of subdirectories GitLess traverses when scanning workspace folders for Git repositories. Equivalent to `git.repositoryScanMaxDepth`. For the best multi-repo workspace experience, set both `git.repositoryScanMaxDepth` and `gitless.repositoryScanMaxDepth` to the same number."
+          "markdownDescription": "Deprecated. Repository discovery is managed by the built-in Git extension.",
+          "markdownDeprecationMessage": "This setting is ignored. Configure `git.repositoryScanMaxDepth` instead. GitLess uses the repositories opened by the built-in Git extension."
         },
         "gitless.views.commits.showBranchComparison": {
           "type": "boolean",

@@ -1,878 +1,911 @@
 import * as assert from "node:assert"
-import { suite, test } from "mocha"
+import { suite, teardown, test } from "mocha"
 import * as vscode from "vscode"
 import { GitService } from "../git/gitService"
 import { getLogFormat } from "../git/parsers"
+import type { GitExecOptions } from "../git/shell"
+import type {
+  API,
+  APIState,
+  Branch,
+  Commit,
+  GitExtension,
+  Remote,
+  Repository,
+  Worktree,
+} from "../types/vscode.git"
 
 const REPO_A = "/workspace/repo-a"
-const REPO_A_NESTED = "/workspace/repo-a/packages/pkg-a"
+const REPO_NESTED = `${REPO_A}/packages/nested`
 const REPO_B = "/workspace/repo-b"
-const NON_GIT = "/workspace/not-git"
-const MULTI_REPO = "/workspace/multi-repo"
-const FASTENV = `${MULTI_REPO}/fastenv`
-const TEMPLATE_PYTHON = `${MULTI_REPO}/template-python`
-const STASH_SHA = "cccccccccccccccccccccccccccccccccccccccc"
-const SEARCH_SHA = "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
-const SCAN_DEPTH_ROOT = "/workspace/scan-depth"
-const CODEBERG_FORK_REMOTES = [
-  "origin\tssh://git@codeberg.org/fork-owner/repo-name.git (fetch)",
-  "origin\tssh://git@codeberg.org/fork-owner/repo-name.git (push)",
-  "upstream\tssh://git@codeberg.org/upstream-owner/repo-name.git (fetch)",
-  "upstream\tssh://git@codeberg.org/upstream-owner/repo-name.git (push)",
-].join("\n")
-const SCAN_DEPTH_REPOS = [
-  `${SCAN_DEPTH_ROOT}/repo-depth-1`,
-  `${SCAN_DEPTH_ROOT}/level-1/repo-depth-2`,
-  `${SCAN_DEPTH_ROOT}/level-1/level-2/repo-depth-3`,
-  `${SCAN_DEPTH_ROOT}/level-1/level-2/level-3/repo-depth-4`,
-  `${SCAN_DEPTH_ROOT}/level-1/level-2/level-3/level-4/repo-depth-5`,
-]
-const SCAN_DEPTH_GIT_MARKERS = SCAN_DEPTH_REPOS.map(
-  (repoPath) => `${repoPath}/.git/HEAD`,
-)
+const LINKED_WORKTREE = "/workspace/linked-worktree"
+const SHA_A = "a".repeat(40)
+const SHA_B = "b".repeat(40)
+const STASH_SHA = "c".repeat(40)
+const SEARCH_SHA = "deadbeef".repeat(5)
+const GIT_PATH = "/configured/bin/git"
+const DATE = new Date("2024-01-15T10:30:00Z")
 
-type GitExecArgs = readonly string[]
-
-interface CommandsStub {
-  calls: Array<{ command: string; args: unknown[] }>
-  executeCommand(command: string, ...args: unknown[]): Promise<void>
+interface ApiCall {
+  method: string
+  args: unknown[]
 }
 
-type ConfigStub = <T>(key: string) => T | undefined
+interface CliCall {
+  args: string[]
+  options: GitExecOptions
+}
 
-function createCommandsStub(): CommandsStub {
-  return {
-    calls: [],
-    async executeCommand(command: string, ...args: unknown[]): Promise<void> {
-      this.calls.push({ command, args })
+type CliHandler = (args: string[], options: GitExecOptions) => Promise<string>
+
+const disposables: vscode.Disposable[] = []
+
+function createRepository(repoPath: string, headSha = SHA_A) {
+  const changed = new vscode.EventEmitter<void>()
+  disposables.push(changed)
+  const calls: ApiCall[] = []
+  const state = {
+    HEAD: { type: 0, name: "main", commit: headSha } as Branch | undefined,
+    remotes: [] as Remote[],
+    worktrees: [] as Worktree[],
+    onDidChange: changed.event,
+  }
+  const behavior = {
+    failure: undefined as Error | undefined,
+    commits: [makeApiCommit(headSha)],
+  }
+
+  async function record(method: string, ...args: unknown[]): Promise<void> {
+    calls.push({ method, args })
+    if (behavior.failure) throw behavior.failure
+  }
+
+  const stub = {
+    rootUri: vscode.Uri.file(repoPath),
+    state,
+    async log(options: unknown): Promise<Commit[]> {
+      await record("log", options)
+      return behavior.commits
     },
+    async getCommit(ref: string): Promise<Commit> {
+      await record("getCommit", ref)
+      return behavior.commits[0]!
+    },
+    async status(): Promise<void> {
+      await record("status")
+      changed.fire()
+    },
+    async checkout(ref: string): Promise<void> {
+      await record("checkout", ref)
+      changed.fire()
+    },
+    async applyStash(index?: number): Promise<void> {
+      await record("applyStash", index)
+      changed.fire()
+    },
+    async popStash(index?: number): Promise<void> {
+      await record("popStash", index)
+      changed.fire()
+    },
+    async dropStash(index?: number): Promise<void> {
+      await record("dropStash", index)
+      changed.fire()
+    },
+  }
+
+  return {
+    repository: stub as unknown as Repository,
+    state,
+    changed,
+    behavior,
+    calls,
   }
 }
 
-function createWindowStub(initialFilePath?: string) {
-  const listeners: Array<(editor: vscode.TextEditor | undefined) => unknown> =
-    []
-  let activeTextEditor = initialFilePath
-    ? makeTextEditor(initialFilePath)
-    : undefined
-
-  return {
-    stub: {
-      get activeTextEditor(): vscode.TextEditor | undefined {
-        return activeTextEditor
-      },
-      onDidChangeActiveTextEditor(
-        listener: (editor: vscode.TextEditor | undefined) => unknown,
-      ): vscode.Disposable {
-        listeners.push(listener)
-        return { dispose: () => {} }
-      },
-    },
-    async setActiveTextEditor(filePath?: string): Promise<void> {
-      activeTextEditor = filePath ? makeTextEditor(filePath) : undefined
-      for (const listener of listeners) {
-        await listener(activeTextEditor)
-      }
-    },
-  }
-}
-
-function createWorkspaceStub(
-  folderPaths: string[],
-  gitMarkerPaths: string[] = [],
+function createHarness(
+  options: {
+    repositories?: ReturnType<typeof createRepository>[]
+    enabled?: boolean
+    state?: APIState
+    activeFile?: string
+    workspacePaths?: string[]
+    gitExec?: CliHandler
+  } = {},
 ) {
-  let workspaceFolders = folderPaths.map((folderPath, index) => ({
-    uri: vscode.Uri.file(folderPath),
-    name: folderPath.split("/").pop() ?? folderPath,
-    index,
-  })) as vscode.WorkspaceFolder[]
-
-  const workspaceFolderListeners: Array<
-    (event: vscode.WorkspaceFoldersChangeEvent) => unknown
-  > = []
-
-  return {
-    stub: {
-      get workspaceFolders(): readonly vscode.WorkspaceFolder[] {
-        return workspaceFolders
+  const repositories = options.repositories ?? [createRepository(REPO_A)]
+  const opened = new vscode.EventEmitter<Repository>()
+  const closed = new vscode.EventEmitter<Repository>()
+  const initialized = new vscode.EventEmitter<APIState>()
+  const enablement = new vscode.EventEmitter<boolean>()
+  const editorChanged = new vscode.EventEmitter<vscode.TextEditor | undefined>()
+  const workspaceChanged =
+    new vscode.EventEmitter<vscode.WorkspaceFoldersChangeEvent>()
+  disposables.push(
+    opened,
+    closed,
+    initialized,
+    enablement,
+    editorChanged,
+    workspaceChanged,
+  )
+  const cliCalls: CliCall[] = []
+  const contextCalls: Array<{ command: string; args: unknown[] }> = []
+  const watchers: Array<{
+    pattern: vscode.GlobPattern
+    changed: vscode.EventEmitter<vscode.Uri>
+    disposed: boolean
+  }> = []
+  let enabled = options.enabled ?? true
+  let apiReady = enabled
+  let activeTextEditor = options.activeFile
+    ? makeTextEditor(options.activeFile)
+    : undefined
+  const folders = (options.workspacePaths ?? [REPO_A, REPO_B]).map(
+    (folderPath, index) => ({
+      uri: vscode.Uri.file(folderPath),
+      name: folderPath.split("/").pop()!,
+      index,
+    }),
+  )
+  const apiState = {
+    state: options.state ?? "initialized",
+    git: { path: GIT_PATH },
+    repositories: repositories.map((repo) => repo.repository),
+    onDidChangeState: initialized.event,
+    onDidOpenRepository: opened.event,
+    onDidCloseRepository: closed.event,
+    getRepository(uri: vscode.Uri): Repository | null {
+      return (
+        [...apiState.repositories]
+          .sort((a, b) => b.rootUri.fsPath.length - a.rootUri.fsPath.length)
+          .find((repo) => isInside(repo.rootUri.fsPath, uri.fsPath)) ?? null
+      )
+    },
+    async openRepository(): Promise<never> {
+      throw new Error("Browsing must not open repositories in SCM")
+    },
+  }
+  const extension: GitExtension = {
+    get enabled() {
+      return enabled
+    },
+    onDidChangeEnablement: enablement.event,
+    getAPI(version: 1): API {
+      assert.strictEqual(version, 1)
+      assert.ok(enabled, "Do not acquire the API while disabled")
+      if (!apiReady)
+        throw new Error("API is not ready until enablement returns")
+      return apiState as unknown as API
+    },
+  }
+  const service = new GitService(extension, {
+    async gitExec(args, cliOptions): Promise<string> {
+      cliCalls.push({ args: [...args], options: { ...cliOptions } })
+      if (options.gitExec) return options.gitExec(args, cliOptions)
+      throw new Error(`Unexpected CLI call: ${args.join(" ")}`)
+    },
+    workspace: {
+      getWorkspaceFolder(uri: vscode.Uri) {
+        return [...folders]
+          .sort((a, b) => b.uri.fsPath.length - a.uri.fsPath.length)
+          .find((folder) => isInside(folder.uri.fsPath, uri.fsPath))
       },
-      createFileSystemWatcher(): vscode.FileSystemWatcher {
+      createFileSystemWatcher(pattern: vscode.GlobPattern) {
+        const changed = new vscode.EventEmitter<vscode.Uri>()
+        const watcher = { pattern, changed, disposed: false }
+        watchers.push(watcher)
         return {
-          onDidChange: () => ({ dispose: () => {} }),
-          onDidCreate: () => ({ dispose: () => {} }),
-          onDidDelete: () => ({ dispose: () => {} }),
-          dispose: () => {},
+          onDidChange: changed.event,
+          onDidCreate: changed.event,
+          onDidDelete: changed.event,
+          dispose() {
+            watcher.disposed = true
+            changed.dispose()
+          },
         } as unknown as vscode.FileSystemWatcher
       },
-      findFiles(include: vscode.GlobPattern): Promise<vscode.Uri[]> {
-        return Promise.resolve(findMatchingGitMarkers(include, gitMarkerPaths))
+      onDidChangeWorkspaceFolders: workspaceChanged.event,
+    },
+    window: {
+      get activeTextEditor() {
+        return activeTextEditor
       },
-      onDidChangeWorkspaceFolders(
-        listener: (event: vscode.WorkspaceFoldersChangeEvent) => unknown,
-      ): vscode.Disposable {
-        workspaceFolderListeners.push(listener)
-        return { dispose: () => {} }
+      onDidChangeActiveTextEditor: editorChanged.event,
+    },
+    commands: {
+      async executeCommand<T = unknown>(
+        command: string,
+        ...args: unknown[]
+      ): Promise<T> {
+        contextCalls.push({ command, args })
+        return undefined as T
       },
     },
-    async setWorkspaceFolders(nextFolderPaths: string[]): Promise<void> {
-      workspaceFolders = nextFolderPaths.map((folderPath, index) => ({
-        uri: vscode.Uri.file(folderPath),
-        name: folderPath.split("/").pop() ?? folderPath,
-        index,
-      })) as vscode.WorkspaceFolder[]
+  })
+  disposables.push(service)
 
-      for (const listener of workspaceFolderListeners) {
-        await listener({ added: [], removed: [] })
-      }
+  return {
+    service,
+    apiState,
+    repositories,
+    cliCalls,
+    contextCalls,
+    watchers,
+    setEnabled(value: boolean, readyAfterEvent = false) {
+      enabled = value
+      apiReady = value && !readyAfterEvent
+      enablement.fire(value)
+      apiReady = value
+    },
+    setInitialized() {
+      apiState.state = "initialized"
+      initialized.fire("initialized")
+    },
+    open(repo: ReturnType<typeof createRepository>) {
+      apiState.repositories.push(repo.repository)
+      opened.fire(repo.repository)
+    },
+    close(repo: ReturnType<typeof createRepository>) {
+      apiState.repositories = apiState.repositories.filter(
+        (entry) => entry !== repo.repository,
+      )
+      closed.fire(repo.repository)
+    },
+    setActiveFile(filePath?: string) {
+      activeTextEditor = filePath ? makeTextEditor(filePath) : undefined
+      editorChanged.fire(activeTextEditor)
     },
   }
-}
-
-function createConfigStub(values: Record<string, unknown> = {}): ConfigStub {
-  return <T>(key: string): T | undefined => values[key] as T | undefined
 }
 
 function makeTextEditor(filePath: string): vscode.TextEditor {
   return {
-    document: {
-      uri: vscode.Uri.file(filePath),
-    },
+    document: { uri: vscode.Uri.file(filePath) },
   } as vscode.TextEditor
 }
 
-async function gitExecStub(
-  args: GitExecArgs,
-  options: { cwd: string },
-): Promise<string> {
-  const repository = getRepositoryForPath(options.cwd)
-  if (!repository) {
-    throw new Error(`Not a repository: ${options.cwd}`)
+function makeApiCommit(hash: string): Commit {
+  return {
+    hash,
+    message: "fix: API history\n\nCommit details",
+    parents: [SHA_B],
+    authorName: "Test Author",
+    authorEmail: "test@example.com",
+    authorDate: DATE,
+    commitDate: DATE,
   }
-
-  if (args[0] === "rev-parse" && args[1] === "--show-toplevel") {
-    return repository.rootPath
-  }
-
-  if (args[0] === "rev-parse" && args[1] === "HEAD") {
-    return repository.headSha
-  }
-
-  if (
-    args[0] === "symbolic-ref" &&
-    args[1] === "--short" &&
-    args[2] === "HEAD"
-  ) {
-    return repository.headBranch
-  }
-
-  throw new Error(`Unexpected git command: ${args.join(" ")}`)
 }
 
-function createStashFilesService(overrides?: {
-  trackedOutput?: string
-  untrackedOutput?: string
-  failUntracked?: boolean
-}): { service: GitService; calls: GitExecArgs[] } {
-  const trackedOutput = overrides?.trackedOutput ?? ""
-  const untrackedOutput = overrides?.untrackedOutput ?? ""
-  const failUntracked = overrides?.failUntracked ?? false
-  const calls: GitExecArgs[] = []
-
-  const service = new GitService({
-    async gitExec(args: GitExecArgs): Promise<string> {
-      calls.push([...args])
-
-      if (
-        args[0] === "stash" &&
-        args[1] === "show" &&
-        args[2] === "--name-status" &&
-        args[3] === STASH_SHA
-      ) {
-        return trackedOutput
-      }
-
-      if (
-        args[0] === "stash" &&
-        args[1] === "show" &&
-        args[2] === "--only-untracked" &&
-        args[3] === "--name-status" &&
-        args[4] === STASH_SHA
-      ) {
-        if (failUntracked) throw new Error("untracked lookup failed")
-        return untrackedOutput
-      }
-
-      throw new Error(`Unexpected git command: ${args.join(" ")}`)
-    },
-    workspace: createWorkspaceStub([]).stub,
-    window: createWindowStub().stub,
-    commands: createCommandsStub(),
-  })
-
-  return { service, calls }
-}
-
-function createStashActionService(): {
-  service: GitService
-  calls: Array<{ args: GitExecArgs; cwd: string }>
-} {
-  const calls: Array<{ args: GitExecArgs; cwd: string }> = []
-  const service = new GitService({
-    async gitExec(
-      args: GitExecArgs,
-      options: { cwd: string },
-    ): Promise<string> {
-      calls.push({ args: [...args], cwd: options.cwd })
-      return ""
-    },
-    workspace: createWorkspaceStub([]).stub,
-    window: createWindowStub().stub,
-    commands: createCommandsStub(),
-  })
-
-  return { service, calls }
-}
-
-function createSearchCommitByShaService(overrides?: {
-  revParseOutput?: string
-  revParseError?: Error
-  showOutput?: string
-}): { service: GitService; calls: GitExecArgs[] } {
-  const resolvedSha = overrides?.revParseOutput ?? SEARCH_SHA
-  const showOutput =
-    overrides?.showOutput ?? makeLogOutput(resolvedSha, "fix: sha search")
-  const calls: GitExecArgs[] = []
-
-  const service = new GitService({
-    async gitExec(args: GitExecArgs): Promise<string> {
-      calls.push([...args])
-
-      if (
-        args[0] === "rev-parse" &&
-        args[1] === "--verify" &&
-        args[2] === "--quiet"
-      ) {
-        if (overrides?.revParseError) throw overrides.revParseError
-        return `${resolvedSha}\n`
-      }
-
-      if (args[0] === "show" && args[1] === "--no-patch") {
-        return showOutput
-      }
-
-      throw new Error(`Unexpected git command: ${args.join(" ")}`)
-    },
-    workspace: createWorkspaceStub([]).stub,
-    window: createWindowStub().stub,
-    commands: createCommandsStub(),
-  })
-
-  return { service, calls }
-}
-
-function createRemoteService(remoteOutput: string): GitService {
-  return new GitService({
-    async gitExec(args: GitExecArgs): Promise<string> {
-      if (args[0] === "remote" && args[1] === "-v") return remoteOutput
-      throw new Error(`Unexpected git command: ${args.join(" ")}`)
-    },
-    workspace: createWorkspaceStub([]).stub,
-    window: createWindowStub().stub,
-    commands: createCommandsStub(),
-  })
-}
-
-function makeLogOutput(sha: string, summary: string): string {
+function makeLogOutput(sha: string, summary = "fix: supplemental history") {
   return [
     sha,
     sha.slice(0, 7),
     "",
     "Test",
     "test@test.com",
-    "2024-01-15T10:30:00Z",
-    "Test",
-    "test@test.com",
-    "2024-01-15T10:30:00Z",
+    DATE.toISOString(),
+    "Test Committer",
+    "committer@test.com",
+    DATE.toISOString(),
     summary,
     "<<END_COMMIT>>",
   ].join("\n")
 }
 
-function getRepositoryForPath(
-  fsPath: string,
-): { rootPath: string; headSha: string; headBranch: string } | undefined {
-  const scanDepthRepoIndex = SCAN_DEPTH_REPOS.findIndex((repoPath) =>
-    isInside(repoPath, fsPath),
-  )
-  if (scanDepthRepoIndex >= 0) {
-    const index = scanDepthRepoIndex + 1
-    return {
-      rootPath: SCAN_DEPTH_REPOS[scanDepthRepoIndex]!,
-      headSha: `${index}`.repeat(40),
-      headBranch: "main",
-    }
-  }
-
-  if (isInside(FASTENV, fsPath)) {
-    return {
-      rootPath: FASTENV,
-      headSha: "ffffffffffffffffffffffffffffffffffffffff",
-      headBranch: "main",
-    }
-  }
-
-  if (isInside(TEMPLATE_PYTHON, fsPath)) {
-    return {
-      rootPath: TEMPLATE_PYTHON,
-      headSha: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-      headBranch: "main",
-    }
-  }
-
-  if (isInside(REPO_A, fsPath)) {
-    return {
-      rootPath: REPO_A,
-      headSha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-      headBranch: "main",
-    }
-  }
-
-  if (isInside(REPO_B, fsPath)) {
-    return {
-      rootPath: REPO_B,
-      headSha: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-      headBranch: "develop",
-    }
-  }
-
-  return undefined
+function isInside(root: string, candidate: string): boolean {
+  return candidate === root || candidate.startsWith(`${root}/`)
 }
 
-function isInside(basePath: string, candidatePath: string): boolean {
-  return candidatePath === basePath || candidatePath.startsWith(`${basePath}/`)
-}
-
-function findMatchingGitMarkers(
-  include: vscode.GlobPattern,
-  gitMarkerPaths: string[],
-): vscode.Uri[] {
-  if (!(include instanceof vscode.RelativePattern)) return []
-
-  return gitMarkerPaths
-    .filter((markerPath) => isInside(include.baseUri.fsPath, markerPath))
-    .filter((markerPath) => {
-      const relativePath = normalizePath(
-        pathRelative(include.baseUri.fsPath, markerPath),
-      )
-
-      return matchGitMarkerPattern(relativePath, include.pattern)
-    })
-    .map((markerPath) => vscode.Uri.file(markerPath))
-}
-
-function matchGitMarkerPattern(relativePath: string, pattern: string): boolean {
-  if (pattern === "**/.git") return relativePath.endsWith("/.git")
-  if (pattern === "**/.git/HEAD") return relativePath.endsWith("/.git/HEAD")
-
-  const relativeParts = relativePath.split("/")
-  const patternParts = pattern.split("/")
-  if (relativeParts.length !== patternParts.length) return false
-
-  return patternParts.every((patternPart, index) => {
-    const relativePart = relativeParts[index]
-    return patternPart === "*" || patternPart === relativePart
-  })
-}
-
-function pathRelative(basePath: string, candidatePath: string): string {
-  return candidatePath.slice(basePath.length + 1)
-}
-
-function normalizePath(filePath: string): string {
-  return filePath.replace(/\\/g, "/")
+async function settleEvents(): Promise<void> {
+  await new Promise<void>((resolve) => setImmediate(resolve))
 }
 
 suite("GitService", () => {
-  suite("stash actions", () => {
-    const cases: Array<{
-      name: string
-      expectedArgs: string[]
-      run: (service: GitService) => Promise<void>
-    }> = [
-      {
-        name: "apply",
-        expectedArgs: ["stash", "apply", "stash@{2}"],
-        run: (service) => service.applyStash(REPO_A, 2),
-      },
-      {
-        name: "pop",
-        expectedArgs: ["stash", "pop", "stash@{2}"],
-        run: (service) => service.popStash(REPO_A, 2),
-      },
-      {
-        name: "branch",
-        expectedArgs: ["stash", "branch", "feature/stashed", "stash@{2}"],
-        run: (service) =>
-          service.createBranchFromStash(REPO_A, 2, "feature/stashed"),
-      },
-      {
-        name: "drop",
-        expectedArgs: ["stash", "drop", "stash@{2}"],
-        run: (service) => service.dropStash(REPO_A, 2),
-      },
-    ]
-
-    for (const action of cases) {
-      test(`should run git stash ${action.name} and notify views`, async () => {
-        const { service, calls } = createStashActionService()
-        let changeCount = 0
-        service.onDidChange(() => {
-          changeCount += 1
-        })
-
-        await action.run(service)
-
-        assert.deepStrictEqual(calls, [
-          { args: action.expectedArgs, cwd: REPO_A },
-        ])
-        assert.strictEqual(changeCount, 1)
-
-        service.dispose()
-      })
+  teardown(() => {
+    for (const disposable of disposables.splice(0).reverse()) {
+      disposable.dispose()
     }
   })
 
-  suite("getStashFiles", () => {
-    test("should use stash show rather than diff-tree", async () => {
-      const { service, calls } = createStashFilesService({
-        trackedOutput: "M\tsrc/tracked.ts",
-        untrackedOutput: "A\tsrc/untracked.ts",
-      })
-
-      await service.getStashFiles(REPO_A, STASH_SHA)
-
-      assert.deepStrictEqual(calls, [
-        ["stash", "show", "--name-status", STASH_SHA],
-        ["stash", "show", "--only-untracked", "--name-status", STASH_SHA],
-      ])
-      assert.ok(
-        calls.every((args) => args[0] !== "diff-tree"),
-        "stash files should not use diff-tree",
-      )
-
-      service.dispose()
-    })
-
-    test("should return tracked stash files", async () => {
-      const { service } = createStashFilesService({
-        trackedOutput: "M\tsrc/tracked.ts",
-      })
-
-      const files = await service.getStashFiles(REPO_A, STASH_SHA)
-
-      assert.deepStrictEqual(files, [
-        { path: "src/tracked.ts", originalPath: undefined, status: "modified" },
-      ])
-
-      service.dispose()
-    })
-
-    test("should return an empty list when both outputs are empty", async () => {
-      const { service } = createStashFilesService()
-
-      const files = await service.getStashFiles(REPO_A, STASH_SHA)
-
-      assert.deepStrictEqual(files, [])
-
-      service.dispose()
-    })
-
-    test("should mark only-untracked entries as untracked", async () => {
-      const { service } = createStashFilesService({
-        untrackedOutput: "A\tsrc/untracked.ts",
-      })
-
-      const files = await service.getStashFiles(REPO_A, STASH_SHA)
-
-      assert.deepStrictEqual(files, [
-        {
-          path: "src/untracked.ts",
-          originalPath: undefined,
-          status: "untracked",
-        },
-      ])
-
-      service.dispose()
-    })
-
-    test("should return tracked files when untracked lookup fails", async () => {
-      const { service } = createStashFilesService({
-        trackedOutput: "M\tsrc/tracked.ts",
-        failUntracked: true,
-      })
-
-      const files = await service.getStashFiles(REPO_A, STASH_SHA)
-
-      assert.deepStrictEqual(files, [
-        { path: "src/tracked.ts", originalPath: undefined, status: "modified" },
-      ])
-
-      service.dispose()
-    })
-  })
-
-  suite("preferred remotes", () => {
-    test("should keep origin as the preferred command remote", async () => {
-      const service = createRemoteService(CODEBERG_FORK_REMOTES)
-
-      const remote = await service.getPreferredRemote(REPO_A)
-
-      assert.strictEqual(remote?.name, "origin")
-      assert.strictEqual(remote?.provider?.owner, "fork-owner")
-      assert.strictEqual(remote?.provider?.repo, "repo-name")
-
-      service.dispose()
-    })
-
-    test("should prefer upstream for autolink remotes", async () => {
-      const service = createRemoteService(CODEBERG_FORK_REMOTES)
-
-      const remote = await service.getPreferredAutolinkRemote(REPO_A)
-
-      assert.strictEqual(remote?.name, "upstream")
-      assert.strictEqual(remote?.provider?.owner, "upstream-owner")
-      assert.strictEqual(remote?.provider?.repo, "repo-name")
-
-      service.dispose()
-    })
-
-    test("should ignore unrecognized upstream autolink remotes", async () => {
-      const service = createRemoteService(
-        [
-          "upstream\tssh://git@example.com/upstream-owner/repo-name.git (fetch)",
-          "origin\tssh://git@codeberg.org/fork-owner/repo-name.git (fetch)",
-        ].join("\n"),
-      )
-
-      const remote = await service.getPreferredAutolinkRemote(REPO_A)
-
-      assert.strictEqual(remote?.name, "origin")
-      assert.strictEqual(remote?.provider?.owner, "fork-owner")
-      assert.strictEqual(remote?.provider?.repo, "repo-name")
-
-      service.dispose()
-    })
-  })
-
-  suite("searchCommits", () => {
-    test("should resolve sha search by unique prefix", async () => {
-      const prefix = SEARCH_SHA.slice(0, 7).toUpperCase()
-      const { service, calls } = createSearchCommitByShaService()
-
-      const commits = await service.searchCommits(REPO_A, prefix, {
-        mode: "sha",
-      })
-
-      assert.strictEqual(commits.length, 1)
-      assert.strictEqual(commits[0]?.sha, SEARCH_SHA)
-      assert.deepStrictEqual(calls, [
-        [
-          "rev-parse",
-          "--verify",
-          "--quiet",
-          `${SEARCH_SHA.slice(0, 7)}^{commit}`,
-        ],
-        ["show", "--no-patch", `--format=${getLogFormat()}`, SEARCH_SHA],
-      ])
-
-      service.dispose()
-    })
-
-    test("should return no results for invalid sha query", async () => {
-      const { service, calls } = createSearchCommitByShaService()
-
-      const commits = await service.searchCommits(REPO_A, "fix login", {
-        mode: "sha",
-      })
-
-      assert.deepStrictEqual(commits, [])
-      assert.deepStrictEqual(calls, [])
-
-      service.dispose()
-    })
-
-    test("should return no results for unresolved sha query", async () => {
-      const prefix = SEARCH_SHA.slice(0, 7)
-      const { service, calls } = createSearchCommitByShaService({
-        revParseError: new Error("ambiguous or missing revision"),
-      })
-
-      const commits = await service.searchCommits(REPO_A, prefix, {
-        mode: "sha",
-      })
-
-      assert.deepStrictEqual(commits, [])
-      assert.deepStrictEqual(calls, [
-        ["rev-parse", "--verify", "--quiet", `${prefix}^{commit}`],
-      ])
-
-      service.dispose()
-    })
-  })
-
-  test("should discover and dedupe repositories from workspace folders", async () => {
-    const workspace = createWorkspaceStub([
-      REPO_A,
-      REPO_A_NESTED,
-      REPO_B,
-      NON_GIT,
-    ])
-    const window = createWindowStub()
-    const commands = createCommandsStub()
-    const service = new GitService({
-      gitExec: gitExecStub,
-      workspace: workspace.stub,
-      window: window.stub,
-      commands,
-    })
-
-    const repositories = await service.getRepositories()
-
-    assert.deepStrictEqual(
-      repositories.map((repository) => repository.path),
-      [REPO_A, REPO_B],
-    )
-    assert.deepStrictEqual(
-      repositories.map((repository) => repository.label),
-      ["repo-a", "repo-b"],
-    )
-    assert.ok(
-      commands.calls.some(
-        (call) =>
-          call.command === "setContext" &&
-          call.args[0] === "gitless:repositories:multiple" &&
-          call.args[1] === true,
-      ),
-    )
-
-    service.dispose()
-  })
-
-  test("should discover child repositories from a non-git workspace folder", async () => {
-    const workspace = createWorkspaceStub(
-      [MULTI_REPO],
-      [`${FASTENV}/.git/HEAD`, `${TEMPLATE_PYTHON}/.git/HEAD`],
-    )
-    const window = createWindowStub()
-    const commands = createCommandsStub()
-    const service = new GitService({
-      gitExec: gitExecStub,
-      workspace: workspace.stub,
-      window: window.stub,
-      commands,
-    })
-
-    const repositories = await service.getRepositories()
-
-    assert.deepStrictEqual(
-      repositories.map((repository) => repository.path),
-      [FASTENV, TEMPLATE_PYTHON],
-    )
-    assert.deepStrictEqual(
-      repositories.map((repository) => repository.label),
-      ["fastenv", "template-python"],
-    )
-    assert.ok(
-      commands.calls.some(
-        (call) =>
-          call.command === "setContext" &&
-          call.args[0] === "gitless:repositories:multiple" &&
-          call.args[1] === true,
-      ),
-    )
-
-    service.dispose()
-  })
-
-  test("should use the active editor repo from child discovery", async () => {
-    const workspace = createWorkspaceStub(
-      [MULTI_REPO],
-      [`${FASTENV}/.git/HEAD`, `${TEMPLATE_PYTHON}/.git/HEAD`],
-    )
-    const window = createWindowStub(`${TEMPLATE_PYTHON}/src/index.py`)
-    const service = new GitService({
-      gitExec: gitExecStub,
-      workspace: workspace.stub,
-      window: window.stub,
-      commands: createCommandsStub(),
-    })
-
-    const activeRepository = await service.getActiveRepository()
-
-    assert.strictEqual(activeRepository?.path, TEMPLATE_PYTHON)
-    assert.strictEqual(activeRepository?.label, "template-python")
-
-    service.dispose()
-  })
-
-  test("should dedupe child and direct workspace repositories", async () => {
-    const workspace = createWorkspaceStub(
-      [MULTI_REPO, FASTENV],
-      [`${FASTENV}/.git/HEAD`],
-    )
-    const service = new GitService({
-      gitExec: gitExecStub,
-      workspace: workspace.stub,
-      window: createWindowStub().stub,
-      commands: createCommandsStub(),
-    })
-
-    const repositories = await service.getRepositories()
-
-    assert.deepStrictEqual(
-      repositories.map((repository) => repository.path),
-      [FASTENV],
-    )
-
-    service.dispose()
-  })
-
-  test("should discover child repositories from git file markers", async () => {
-    const workspace = createWorkspaceStub([MULTI_REPO], [`${FASTENV}/.git`])
-    const service = new GitService({
-      gitExec: gitExecStub,
-      workspace: workspace.stub,
-      window: createWindowStub().stub,
-      commands: createCommandsStub(),
-    })
-
-    const repositories = await service.getRepositories()
-
-    assert.deepStrictEqual(
-      repositories.map((repository) => repository.path),
-      [FASTENV],
-    )
-
-    service.dispose()
-  })
-
-  for (const { label, configuredDepth, expectedDepth } of [
-    { label: "default depth", configuredDepth: undefined, expectedDepth: 1 },
-    { label: "depth 2", configuredDepth: 2, expectedDepth: 2 },
-    { label: "depth 3", configuredDepth: 3, expectedDepth: 3 },
-    { label: "depth 4", configuredDepth: 4, expectedDepth: 4 },
-    { label: "depth 5", configuredDepth: 5, expectedDepth: 5 },
-  ]) {
-    test(`should discover repositories at ${label}`, async () => {
-      const workspace = createWorkspaceStub(
-        [SCAN_DEPTH_ROOT],
-        SCAN_DEPTH_GIT_MARKERS,
-      )
-      const configValues =
-        configuredDepth === undefined
-          ? {}
-          : { repositoryScanMaxDepth: configuredDepth }
-      const service = new GitService({
-        gitExec: gitExecStub,
-        getConfig: createConfigStub(configValues),
-        workspace: workspace.stub,
-        window: createWindowStub().stub,
-        commands: createCommandsStub(),
-      })
-
-      const repositories = await service.getRepositories()
+  suite("API repository lifecycle", () => {
+    test("uses the API snapshot without probing workspace folders", async () => {
+      const repoA = createRepository(REPO_A)
+      const repoB = createRepository(REPO_B, SHA_B)
+      const harness = createHarness({ repositories: [repoA, repoB] })
+      const repositories = await harness.service.getRepositories()
 
       assert.deepStrictEqual(
-        repositories.map((repository) => repository.path),
-        SCAN_DEPTH_REPOS.slice(0, expectedDepth),
+        repositories.map((repo) => ({ path: repo.path, label: repo.label })),
+        [
+          { path: REPO_A, label: "repo-a" },
+          { path: REPO_B, label: "repo-b" },
+        ],
       )
-
-      service.dispose()
-    })
-  }
-
-  test("should use the active editor repo as the initial active repository", async () => {
-    const workspace = createWorkspaceStub([REPO_A, REPO_B])
-    const window = createWindowStub(`${REPO_B}/src/index.ts`)
-    const service = new GitService({
-      gitExec: gitExecStub,
-      workspace: workspace.stub,
-      window: window.stub,
-      commands: createCommandsStub(),
+      assert.strictEqual(repositories[0]?.headSha, SHA_A)
+      assert.strictEqual(repositories[0]?.workspaceFolderName, "repo-a")
+      assert.deepStrictEqual(harness.cliCalls, [])
+      assert.ok(
+        harness.contextCalls.some(
+          (call) =>
+            call.command === "setContext" &&
+            call.args[0] === "gitless:repositories:multiple" &&
+            call.args[1] === true,
+        ),
+      )
     })
 
-    const activeRepository = await service.getActiveRepository()
+    test("selects the deepest repository containing the initial editor", async () => {
+      const harness = createHarness({
+        repositories: [createRepository(REPO_A), createRepository(REPO_NESTED)],
+        activeFile: `${REPO_NESTED}/index.ts`,
+      })
 
-    assert.strictEqual(activeRepository?.path, REPO_B)
-    assert.strictEqual(activeRepository?.label, "repo-b")
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_NESTED)
+      assert.deepStrictEqual(
+        await harness.service.getRepoFileContext(
+          vscode.Uri.file(`${REPO_NESTED}/src/index.ts`),
+        ),
+        { repoPath: REPO_NESTED, relativePath: "src/index.ts" },
+      )
+    })
 
-    service.dispose()
+    test("preserves manual selection until the active editor changes", async () => {
+      const harness = createHarness({
+        repositories: [createRepository(REPO_A), createRepository(REPO_B)],
+        activeFile: `${REPO_A}/first.ts`,
+      })
+      await harness.service.setActiveRepository(REPO_B)
+      harness.open(createRepository(REPO_NESTED))
+      await settleEvents()
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_B)
+
+      harness.setActiveFile(`${REPO_A}/second.ts`)
+      await settleEvents()
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_A)
+    })
+
+    test("tracks repositories opened and closed after initialization", async () => {
+      const repoA = createRepository(REPO_A)
+      const repoB = createRepository(REPO_B)
+      const harness = createHarness({ repositories: [repoA] })
+      harness.open(repoB)
+      await settleEvents()
+      await harness.service.setActiveRepository(REPO_B)
+      harness.close(repoB)
+      await settleEvents()
+
+      assert.deepStrictEqual(
+        (await harness.service.getRepositories()).map((repo) => repo.path),
+        [REPO_A],
+      )
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_A)
+      let changes = 0
+      harness.service.onDidChange(() => changes++)
+      repoB.changed.fire()
+      await settleEvents()
+      assert.strictEqual(changes, 0, "Closed repositories must be unsubscribed")
+    })
+
+    test("follows an editor repository discovered after API initialization", async () => {
+      const harness = createHarness({ activeFile: `${REPO_A}/first.ts` })
+      harness.setActiveFile(`${REPO_B}/first.ts`)
+      await settleEvents()
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_A)
+
+      harness.open(createRepository(REPO_B))
+      await settleEvents()
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_B)
+    })
+
+    test("keeps manual selection over pending editor discovery until the editor changes", async () => {
+      const harness = createHarness({
+        repositories: [createRepository(REPO_A), createRepository(REPO_NESTED)],
+        activeFile: `${REPO_A}/first.ts`,
+      })
+      harness.setActiveFile(`${REPO_B}/first.ts`)
+      await settleEvents()
+      await harness.service.setActiveRepository(REPO_NESTED)
+      harness.open(createRepository(REPO_B))
+      await settleEvents()
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_NESTED)
+
+      harness.setActiveFile(`${REPO_B}/second.ts`)
+      await settleEvents()
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_B)
+    })
+
+    test("accepts repositories arriving during API initialization", async () => {
+      const harness = createHarness({
+        repositories: [],
+        state: "uninitialized",
+        activeFile: `${REPO_B}/index.ts`,
+      })
+      assert.deepStrictEqual(await harness.service.getRepositories(), [])
+      harness.open(createRepository(REPO_A))
+      harness.open(createRepository(REPO_B))
+      harness.setInitialized()
+      await settleEvents()
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_B)
+    })
+
+    test("rejects URI matches outside roots or using unsupported schemes", async () => {
+      const { service } = createHarness()
+      assert.strictEqual(
+        await service.getRepositoryForUri(vscode.Uri.file(`${REPO_A}-other/a`)),
+        undefined,
+      )
+      assert.strictEqual(
+        await service.getRepositoryForUri(vscode.Uri.parse("untitled:example")),
+        undefined,
+      )
+      assert.strictEqual(
+        await service.getRepoFileContext(vscode.Uri.file(REPO_A)),
+        undefined,
+      )
+    })
+
+    test("coalesces state changes without recursively requesting status", async () => {
+      const repo = createRepository(REPO_A)
+      const { service } = createHarness({ repositories: [repo] })
+      await settleEvents()
+      let changes = 0
+      service.onDidChange(() => changes++)
+      repo.state.HEAD = { type: 0, name: "topic", commit: SHA_B }
+      repo.changed.fire()
+      repo.changed.fire()
+      repo.changed.fire()
+      await settleEvents()
+
+      assert.strictEqual(changes, 1)
+      assert.strictEqual((await service.getActiveRepository())?.headSha, SHA_B)
+      assert.strictEqual(await service.getHeadBranch(REPO_A), "topic")
+      assert.deepStrictEqual(repo.calls, [])
+    })
+
+    test("explicit refresh requests status once for each open repository", async () => {
+      const repoA = createRepository(REPO_A)
+      const repoB = createRepository(REPO_B)
+      const { service } = createHarness({ repositories: [repoA, repoB] })
+      await settleEvents()
+      repoA.calls.length = 0
+      repoB.calls.length = 0
+      await service.refreshRepositories(true)
+      await settleEvents()
+
+      for (const repo of [repoA, repoB]) {
+        assert.deepStrictEqual(repo.calls, [{ method: "status", args: [] }])
+      }
+    })
+
+    test("supports detached and unborn HEAD without CLI probes", async () => {
+      const repo = createRepository(REPO_A)
+      repo.state.HEAD = { type: 0, commit: SHA_A }
+      const harness = createHarness({ repositories: [repo] })
+      assert.strictEqual(await harness.service.getHeadSha(REPO_A), SHA_A)
+      assert.strictEqual(await harness.service.getHeadBranch(REPO_A), undefined)
+      repo.state.HEAD = { type: 0, name: "main" }
+      repo.changed.fire()
+      await settleEvents()
+      await assert.rejects(harness.service.getHeadSha(REPO_A))
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("does not treat a detached tag name as a HEAD branch", async () => {
+      const repo = createRepository(REPO_A)
+      repo.state.HEAD = { type: 2, name: "v1", commit: SHA_A }
+      const harness = createHarness({ repositories: [repo] })
+
+      assert.strictEqual(await harness.service.getHeadSha(REPO_A), SHA_A)
+      assert.strictEqual(await harness.service.getHeadBranch(REPO_A), undefined)
+      assert.strictEqual(
+        (await harness.service.getActiveRepository())?.headBranch,
+        undefined,
+      )
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("refreshes other repositories and reports a status failure", async () => {
+      const repoA = createRepository(REPO_A)
+      const repoB = createRepository(REPO_B)
+      const failure = new Error("Status failed")
+      const { service } = createHarness({ repositories: [repoA, repoB] })
+      await settleEvents()
+      repoA.behavior.failure = failure
+      let changes = 0
+      service.onDidChange(() => changes++)
+
+      await assert.rejects(
+        service.refreshRepositories(true),
+        (error) => error === failure,
+      )
+      await settleEvents()
+
+      assert.deepStrictEqual(repoB.calls, [{ method: "status", args: [] }])
+      assert.ok(changes > 0, "A failed refresh must still invalidate views")
+    })
+
+    test("does not retain subscriptions or watchers after disposal", async () => {
+      const repo = createRepository(REPO_A)
+      const harness = createHarness({ repositories: [repo] })
+      await settleEvents()
+      let changes = 0
+      harness.service.onDidChange(() => changes++)
+      harness.service.dispose()
+      repo.changed.fire()
+      harness.open(createRepository(REPO_B))
+      await settleEvents()
+      assert.strictEqual(changes, 0)
+      assert.ok(harness.watchers.every((watcher) => watcher.disposed))
+    })
   })
 
-  test("should follow the editor after a manual repository selection", async () => {
-    const workspace = createWorkspaceStub([REPO_A, REPO_B])
-    const window = createWindowStub(`${REPO_A}/src/index.ts`)
-    const service = new GitService({
-      gitExec: gitExecStub,
-      workspace: workspace.stub,
-      window: window.stub,
-      commands: createCommandsStub(),
+  suite("API enablement and routing", () => {
+    test("acquires a reenabled API after its enablement event returns", async () => {
+      const harness = createHarness({ enabled: false })
+      harness.setEnabled(true, true)
+      await settleEvents()
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_A)
+      harness.setEnabled(false)
+      assert.deepStrictEqual(await harness.service.getRepositories(), [])
+      await assert.rejects(harness.service.getTags(REPO_A))
+      assert.deepStrictEqual(harness.cliCalls, [])
     })
 
-    await service.getRepositories()
-    await service.setActiveRepository(REPO_B)
-    assert.strictEqual(await service.getActiveRepoPath(), REPO_B)
+    test("does not run CLI supplements when Git is disabled", async () => {
+      const harness = createHarness({ enabled: false })
+      assert.deepStrictEqual(await harness.service.getRepositories(), [])
+      await assert.rejects(harness.service.getTags(REPO_A))
+      await assert.rejects(harness.service.checkout(REPO_A, "topic"))
+      assert.deepStrictEqual(harness.cliCalls, [])
+      harness.setEnabled(true)
+      await settleEvents()
+      assert.strictEqual(await harness.service.getActiveRepoPath(), REPO_A)
+      harness.setEnabled(false)
+      await settleEvents()
+      assert.deepStrictEqual(await harness.service.getRepositories(), [])
+    })
 
-    await window.setActiveTextEditor(`${REPO_A}/src/other.ts`)
-    assert.strictEqual(await service.getActiveRepoPath(), REPO_A)
+    test("maps ordinary HEAD history through the API", async () => {
+      const repo = createRepository(REPO_A)
+      const harness = createHarness({ repositories: [repo] })
+      const commits = await harness.service.getCommits(REPO_A, { maxCount: 12 })
 
-    service.dispose()
+      assert.deepStrictEqual(repo.calls, [
+        { method: "log", args: [{ maxEntries: 12 }] },
+      ])
+      assert.strictEqual(commits[0]?.sha, SHA_A)
+      assert.strictEqual(commits[0]?.summary, "fix: API history")
+      assert.strictEqual(commits[0]?.author.name, "Test Author")
+      assert.deepStrictEqual(commits[0]?.parents, [SHA_B])
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("defaults HEAD history to 50 entries and forwards an optional path", async () => {
+      const repo = createRepository(REPO_A)
+      const harness = createHarness({ repositories: [repo] })
+      await harness.service.getCommits(REPO_A)
+      await harness.service.getCommits(REPO_A, { path: "src/index.ts" })
+
+      assert.deepStrictEqual(repo.calls, [
+        { method: "log", args: [{ maxEntries: 50 }] },
+        {
+          method: "log",
+          args: [{ maxEntries: 50, path: "src/index.ts" }],
+        },
+      ])
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    for (const method of [
+      "checkout",
+      "applyStash",
+      "popStash",
+      "dropStash",
+    ] as const) {
+      test(`uses API ${method} and never retries failures through CLI`, async () => {
+        const repo = createRepository(REPO_A)
+        const harness = createHarness({ repositories: [repo] })
+        const argument = method === "checkout" ? "topic" : 2
+        const run = () =>
+          method === "checkout"
+            ? harness.service.checkout(REPO_A, "topic")
+            : harness.service[method](REPO_A, 2)
+        await run()
+        assert.deepStrictEqual(
+          repo.calls.filter((call) => call.method === method),
+          [{ method, args: [argument] }],
+        )
+        const failure = new Error("API operation failed")
+        repo.behavior.failure = failure
+        await assert.rejects(run(), (error) => error === failure)
+        assert.deepStrictEqual(harness.cliCalls, [])
+      })
+    }
+
+    test("does not retry failed API history through CLI", async () => {
+      const repo = createRepository(REPO_A)
+      const failure = new Error("API history failed")
+      repo.behavior.failure = failure
+      const harness = createHarness({ repositories: [repo] })
+      await assert.rejects(
+        harness.service.getCommits(REPO_A),
+        (error) => error === failure,
+      )
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("resolves SHA prefixes through getCommit without broadening invalid queries", async () => {
+      const repo = createRepository(REPO_A)
+      repo.behavior.commits = [makeApiCommit(SEARCH_SHA)]
+      const harness = createHarness({ repositories: [repo] })
+      assert.deepStrictEqual(
+        await harness.service.searchCommits(REPO_A, "fix login", {
+          mode: "sha",
+        }),
+        [],
+      )
+      assert.strictEqual(repo.calls.length, 0)
+      const commits = await harness.service.searchCommits(REPO_A, " DEADBEE ", {
+        mode: "sha",
+      })
+      assert.strictEqual(commits[0]?.sha, SEARCH_SHA)
+      assert.deepStrictEqual(repo.calls, [
+        { method: "getCommit", args: ["deadbee^{commit}"] },
+      ])
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("returns no result for unresolved API SHA queries without CLI retry", async () => {
+      const repo = createRepository(REPO_A)
+      repo.behavior.failure = new Error("ambiguous revision")
+      const harness = createHarness({ repositories: [repo] })
+      assert.deepStrictEqual(
+        await harness.service.searchCommits(REPO_A, "deadbee", { mode: "sha" }),
+        [],
+      )
+      assert.deepStrictEqual(repo.calls, [
+        { method: "getCommit", args: ["deadbee^{commit}"] },
+      ])
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("uses API remotes while preserving command and autolink preferences", async () => {
+      const repo = createRepository(REPO_A)
+      repo.state.remotes = [
+        {
+          name: "origin",
+          fetchUrl: "ssh://git@codeberg.org/fork-owner/repo-name.git",
+          pushUrl: "ssh://git@codeberg.org/fork-owner/repo-name.git",
+          isReadOnly: false,
+        },
+        {
+          name: "upstream",
+          fetchUrl: "ssh://git@codeberg.org/upstream-owner/repo-name.git",
+          isReadOnly: true,
+        },
+      ]
+      const harness = createHarness({ repositories: [repo] })
+      const preferred = await harness.service.getPreferredRemote(REPO_A)
+      const autolink = await harness.service.getPreferredAutolinkRemote(REPO_A)
+      assert.strictEqual(preferred?.provider?.owner, "fork-owner")
+      assert.strictEqual(autolink?.provider?.owner, "upstream-owner")
+      repo.state.remotes[1] = {
+        name: "upstream",
+        fetchUrl: "ssh://git@example.com/owner/repo.git",
+        isReadOnly: true,
+      }
+      assert.strictEqual(
+        (await harness.service.getPreferredAutolinkRemote(REPO_A))?.name,
+        "origin",
+      )
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
   })
 
-  test("should resolve repository and repo-relative file path for a URI", async () => {
-    const workspace = createWorkspaceStub([REPO_A, REPO_B])
-    const service = new GitService({
-      gitExec: gitExecStub,
-      workspace: workspace.stub,
-      window: createWindowStub().stub,
-      commands: createCommandsStub(),
+  suite("CLI supplements", () => {
+    test("preserves raw revision content and ref object resolution", async () => {
+      const rawContent = "revision contents\r\n"
+      const harness = createHarness({
+        async gitExec(args) {
+          return args[0] === "show" ? rawContent : `${SHA_B}\n`
+        },
+      })
+
+      assert.strictEqual(
+        await harness.service.getFileContent(REPO_A, SHA_A, "src/index.ts"),
+        rawContent,
+      )
+      assert.strictEqual(
+        await harness.service.getShaForRef(REPO_A, "tags/v1"),
+        SHA_B,
+      )
+      assert.deepStrictEqual(
+        harness.cliCalls.map((call) => call.args),
+        [
+          ["show", `${SHA_A}:src/index.ts`],
+          ["rev-parse", "tags/v1"],
+        ],
+      )
+      assert.deepStrictEqual(harness.repositories[0]?.calls, [])
     })
 
-    const repository = await service.getRepositoryForUri(
-      vscode.Uri.file(`${REPO_A}/src/features/example.ts`),
-    )
-    const fileContext = await service.getRepoFileContext(
-      vscode.Uri.file(`${REPO_A}/src/features/example.ts`),
-    )
+    test("preserves history and comparison arguments and configured Git path", async () => {
+      const { service, cliCalls } = createHarness({ gitExec: async () => "" })
+      await service.getFileHistory(REPO_A, "src/file.ts", { maxCount: 10 })
+      await service.getLineHistory(REPO_A, "src/file.ts", 2, 5, { maxCount: 8 })
+      await service.diff(REPO_A, "topic", "main")
+      await service.getCommits(REPO_A, { ref: "topic", maxCount: 6 })
+      await service.getTagCommits(REPO_A, "v1", { maxCount: 4 })
 
-    assert.strictEqual(repository?.path, REPO_A)
-    assert.deepStrictEqual(fileContext, {
-      repoPath: REPO_A,
-      relativePath: "src/features/example.ts",
+      assert.deepStrictEqual(
+        cliCalls.map((call) => call.args),
+        [
+          [
+            "log",
+            `--format=${getLogFormat()}`,
+            "--max-count=10",
+            "--follow",
+            "--",
+            "src/file.ts",
+          ],
+          [
+            "log",
+            `--format=${getLogFormat()}`,
+            "--max-count=8",
+            "-L2,5:src/file.ts",
+          ],
+          ["diff", "--name-status", "topic", "main"],
+          ["log", `--format=${getLogFormat()}`, "--max-count=6", "topic"],
+          ["log", `--format=${getLogFormat()}`, "--max-count=4", "v1"],
+        ],
+      )
+      assert.ok(cliCalls.every((call) => call.options.cwd === REPO_A))
+      assert.ok(cliCalls.every((call) => call.options.gitPath === GIT_PATH))
     })
 
-    service.dispose()
-  })
-
-  test("should return undefined for files outside discovered repositories", async () => {
-    const workspace = createWorkspaceStub([REPO_A, REPO_B])
-    const service = new GitService({
-      gitExec: gitExecStub,
-      workspace: workspace.stub,
-      window: createWindowStub().stub,
-      commands: createCommandsStub(),
+    test("preserves search modes and all-ref matching", async () => {
+      const { service, cliCalls } = createHarness({ gitExec: async () => "" })
+      for (const mode of ["message", "author", "file", "changes"] as const) {
+        await service.searchCommits(REPO_A, "query", { mode, maxCount: 7 })
+      }
+      const prefix = [
+        "log",
+        `--format=${getLogFormat()}`,
+        "--max-count=7",
+        "--all",
+      ]
+      assert.deepStrictEqual(
+        cliCalls.map((call) => call.args),
+        [
+          [...prefix, "--grep=query", "-i"],
+          [...prefix, "--author=query", "-i"],
+          [...prefix, "--", "query"],
+          [...prefix, "-Squery"],
+        ],
+      )
     })
 
-    const repository = await service.getRepositoryForUri(
-      vscode.Uri.file(`${NON_GIT}/src/index.ts`),
-    )
-    const fileContext = await service.getRepoFileContext(
-      vscode.Uri.file(`${NON_GIT}/src/index.ts`),
-    )
+    test("preserves tracked and untracked stash file semantics", async () => {
+      const harness = createHarness({
+        async gitExec(args) {
+          return args.includes("--only-untracked")
+            ? "A\tsrc/new.ts"
+            : "M\tsrc/tracked.ts"
+        },
+      })
+      const files = await harness.service.getStashFiles(REPO_A, STASH_SHA)
+      assert.deepStrictEqual(files, [
+        { path: "src/tracked.ts", originalPath: undefined, status: "modified" },
+        { path: "src/new.ts", originalPath: undefined, status: "untracked" },
+      ])
+      assert.deepStrictEqual(
+        harness.cliCalls.map((call) => call.args),
+        [
+          ["stash", "show", "--name-status", STASH_SHA],
+          ["stash", "show", "--only-untracked", "--name-status", STASH_SHA],
+        ],
+      )
+    })
 
-    assert.strictEqual(repository, undefined)
-    assert.strictEqual(fileContext, undefined)
+    test("retains tracked stash files when untracked lookup fails", async () => {
+      const harness = createHarness({
+        async gitExec(args) {
+          if (args.includes("--only-untracked")) throw new Error("unsupported")
+          return "M\tsrc/tracked.ts"
+        },
+      })
+      assert.deepStrictEqual(
+        await harness.service.getStashFiles(REPO_A, STASH_SHA),
+        [
+          {
+            path: "src/tracked.ts",
+            originalPath: undefined,
+            status: "modified",
+          },
+        ],
+      )
+    })
 
-    service.dispose()
+    test("keeps stash branch as one CLI operation and refreshes API state", async () => {
+      const repo = createRepository(REPO_A)
+      const harness = createHarness({
+        repositories: [repo],
+        gitExec: async () => "",
+      })
+      await harness.service.createBranchFromStash(REPO_A, 2, "topic")
+      assert.deepStrictEqual(
+        harness.cliCalls.map((call) => call.args),
+        [["stash", "branch", "topic", "stash@{2}"]],
+      )
+      assert.deepStrictEqual(repo.calls, [{ method: "status", args: [] }])
+    })
+
+    test("preserves a stash branch failure when the following status also fails", async () => {
+      const repo = createRepository(REPO_A)
+      const operationFailure = new Error("Stash application conflict")
+      repo.behavior.failure = new Error("Status refresh failed")
+      const harness = createHarness({
+        repositories: [repo],
+        async gitExec() {
+          throw operationFailure
+        },
+      })
+
+      await assert.rejects(
+        harness.service.createBranchFromStash(REPO_A, 2, "topic"),
+        (error) => error === operationFailure,
+      )
+      assert.deepStrictEqual(repo.calls, [{ method: "status", args: [] }])
+      assert.strictEqual(harness.cliCalls.length, 1)
+    })
+
+    test("does not run supplements for paths outside known repository roots", async () => {
+      const harness = createHarness({ gitExec: async () => "" })
+      await assert.rejects(harness.service.getTags("/workspace/unknown"))
+      await assert.rejects(harness.service.getTags(`${REPO_A}/src`))
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("allows API-listed worktree reads but requires opening it for mutations", async () => {
+      const repo = createRepository(REPO_A)
+      repo.state.worktrees = [
+        {
+          name: "linked-worktree",
+          path: LINKED_WORKTREE,
+          ref: "refs/heads/topic",
+          main: false,
+          detached: false,
+        },
+      ]
+      const harness = createHarness({
+        repositories: [repo],
+        gitExec: async () => makeLogOutput(SHA_B),
+      })
+      const commits = await harness.service.getCommits(LINKED_WORKTREE)
+      assert.strictEqual(commits[0]?.sha, SHA_B)
+      await assert.rejects(harness.service.checkout(LINKED_WORKTREE, "topic"))
+      assert.strictEqual(harness.cliCalls.length, 1)
+      harness.close(repo)
+      await settleEvents()
+      await assert.rejects(harness.service.getCommits(LINKED_WORKTREE))
+      assert.strictEqual(harness.cliCalls.length, 1)
+    })
+
+    test("allows browsing a listed linked worktree without opening it in SCM", async () => {
+      const harness = createHarness({
+        async gitExec(args) {
+          if (args[0] === "worktree") {
+            return `worktree ${REPO_A}\nHEAD ${SHA_A}\nbranch refs/heads/main\n\nworktree ${LINKED_WORKTREE}\nHEAD ${SHA_B}\nbranch refs/heads/topic\n`
+          }
+          if (args[0] === "log") return makeLogOutput(SHA_B)
+          throw new Error(`Unexpected supplement ${args[0]}`)
+        },
+      })
+      await harness.service.getWorktrees(REPO_A)
+      const commits = await harness.service.getCommits(LINKED_WORKTREE)
+      assert.strictEqual(commits[0]?.sha, SHA_B)
+      assert.strictEqual(harness.cliCalls.at(-1)?.options.cwd, LINKED_WORKTREE)
+      assert.strictEqual(harness.apiState.repositories.length, 1)
+    })
   })
 })
