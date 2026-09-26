@@ -83,7 +83,7 @@ jobs:
       name: release
       deployment: false
     needs: build-and-test
-    if: github.ref == 'refs/heads/main' || !inputs.dry_run
+    if: github.ref == 'refs/heads/main' && !inputs.dry_run
     runs-on: ubuntu-latest
     permissions:
       contents: write
