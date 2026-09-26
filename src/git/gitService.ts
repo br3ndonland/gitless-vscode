@@ -54,6 +54,7 @@ interface GitServiceDependencies {
 interface RepositoryEntry {
   repository: Repository
   subscription: vscode.Disposable
+  initialStatus?: Promise<void>
 }
 
 export class GitService implements vscode.Disposable {
@@ -147,9 +148,10 @@ export class GitService implements vscode.Disposable {
     if (this.refreshPromise) return this.refreshPromise
     const refresh = (async () => {
       const results = await Promise.allSettled(
-        [...this.repositoryEntries.values()].map(({ repository }) =>
-          repository.status(),
-        ),
+        [...this.repositoryEntries.values()].map((entry) => {
+          entry.initialStatus = entry.repository.status()
+          return entry.initialStatus
+        }),
       )
       if (this.api === api && !this.disposed) this.reconcile()
       const failure = results.find((result) => result.status === "rejected")
@@ -275,7 +277,7 @@ export class GitService implements vscode.Disposable {
   }
 
   async getRemotes(repoPath: string): Promise<GitRemote[]> {
-    const repository = this.getApiRepository(repoPath)
+    const repository = await this.getReadyApiRepository(repoPath)
     if (repository) {
       return repository.state.remotes
         .map(mapRemote)
@@ -420,7 +422,7 @@ export class GitService implements vscode.Disposable {
   }
 
   async getHeadSha(repoPath: string): Promise<string> {
-    const repository = this.getApiRepository(repoPath)
+    const repository = await this.getReadyApiRepository(repoPath)
     if (repository) {
       const sha = repository.state.HEAD?.commit
       if (!sha) throw new Error("HEAD does not point to a commit")
@@ -430,7 +432,7 @@ export class GitService implements vscode.Disposable {
   }
 
   async getHeadBranch(repoPath: string): Promise<string | undefined> {
-    const repository = this.getApiRepository(repoPath)
+    const repository = await this.getReadyApiRepository(repoPath)
     if (repository) return apiHeadBranch(repository)
     try {
       return (
@@ -741,6 +743,29 @@ export class GitService implements vscode.Disposable {
       throw new Error(
         `Open the worktree in VS Code Git to change it: ${repoPath}`,
       )
+    return repository
+  }
+
+  private async getReadyApiRepository(
+    repoPath: string,
+  ): Promise<Repository | undefined> {
+    const repository = this.getApiRepository(repoPath)
+    if (!repository || repository.state.HEAD !== undefined) return repository
+
+    const api = this.requireApi()
+    const key = repository.rootUri.toString()
+    const entry = this.repositoryEntries.get(key)!
+    // Git publishes repositories before their initial status finishes. Keep
+    // this promise until explicit refresh so missing HEAD cannot cause a loop.
+    entry.initialStatus ??= repository.status()
+    await entry.initialStatus
+
+    this.requireApi()
+    if (this.api !== api || this.repositoryEntries.get(key) !== entry) {
+      throw new Error(
+        `Repository is no longer open in VS Code Git: ${repoPath}`,
+      )
+    }
     return repository
   }
 

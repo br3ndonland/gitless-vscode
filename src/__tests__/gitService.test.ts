@@ -53,6 +53,7 @@ function createRepository(repoPath: string, headSha = SHA_A) {
   const behavior = {
     failure: undefined as Error | undefined,
     commits: [makeApiCommit(headSha)],
+    statusEffect: undefined as (() => Promise<void>) | undefined,
   }
 
   async function record(method: string, ...args: unknown[]): Promise<void> {
@@ -73,6 +74,7 @@ function createRepository(repoPath: string, headSha = SHA_A) {
     },
     async status(): Promise<void> {
       await record("status")
+      await behavior.statusEffect?.()
       changed.fire()
     },
     async checkout(ref: string): Promise<void> {
@@ -300,6 +302,14 @@ async function settleEvents(): Promise<void> {
   await new Promise<void>((resolve) => setImmediate(resolve))
 }
 
+function deferredStatus() {
+  let resolve!: () => void
+  const promise = new Promise<void>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
 suite("GitService", () => {
   teardown(() => {
     for (const disposable of disposables.splice(0).reverse()) {
@@ -487,6 +497,7 @@ suite("GitService", () => {
       repo.changed.fire()
       await settleEvents()
       await assert.rejects(harness.service.getHeadSha(REPO_A))
+      assert.deepStrictEqual(repo.calls, [])
       assert.deepStrictEqual(harness.cliCalls, [])
     })
 
@@ -540,6 +551,133 @@ suite("GitService", () => {
   })
 
   suite("API enablement and routing", () => {
+    test("waits for one initial status across concurrent metadata reads", async () => {
+      const repo = createRepository(REPO_A)
+      repo.state.HEAD = undefined
+      const status = deferredStatus()
+      repo.behavior.statusEffect = async () => {
+        await status.promise
+        repo.state.HEAD = { type: 0, name: "main", commit: SHA_A }
+        repo.state.remotes = [
+          {
+            name: "origin",
+            fetchUrl: "https://github.com/example/repo.git",
+            isReadOnly: false,
+          },
+        ]
+      }
+      const harness = createHarness({ repositories: [repo] })
+      let resolved = false
+      const metadata = Promise.all([
+        harness.service.getHeadSha(REPO_A),
+        harness.service.getHeadBranch(REPO_A),
+        harness.service.getRemotes(REPO_A),
+      ]).then((values) => {
+        resolved = true
+        return values
+      })
+
+      await settleEvents()
+      assert.strictEqual(resolved, false)
+      assert.deepStrictEqual(repo.calls, [{ method: "status", args: [] }])
+      status.resolve()
+      const [sha, branch, remotes] = await metadata
+      await settleEvents()
+
+      assert.strictEqual(sha, SHA_A)
+      assert.strictEqual(branch, "main")
+      assert.strictEqual(remotes[0]?.name, "origin")
+      assert.deepStrictEqual(repo.calls, [{ method: "status", args: [] }])
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("does not repeat initial status when HEAD remains missing", async () => {
+      const repo = createRepository(REPO_A)
+      repo.state.HEAD = undefined
+      const harness = createHarness({ repositories: [repo] })
+      await assert.rejects(
+        harness.service.getHeadSha(REPO_A),
+        /HEAD does not point to a commit/,
+      )
+      await settleEvents()
+      repo.changed.fire()
+      await settleEvents()
+      await assert.rejects(harness.service.getHeadSha(REPO_A))
+      assert.strictEqual(await harness.service.getHeadBranch(REPO_A), undefined)
+      assert.deepStrictEqual(await harness.service.getRemotes(REPO_A), [])
+      assert.deepStrictEqual(repo.calls, [{ method: "status", args: [] }])
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("retains an initial status failure until explicit refresh without CLI retry", async () => {
+      const repo = createRepository(REPO_A)
+      repo.state.HEAD = undefined
+      const failure = new Error("Initial status failed")
+      repo.behavior.failure = failure
+      const harness = createHarness({ repositories: [repo] })
+
+      await assert.rejects(
+        harness.service.getHeadSha(REPO_A),
+        (error) => error === failure,
+      )
+      await assert.rejects(
+        harness.service.getRemotes(REPO_A),
+        (error) => error === failure,
+      )
+      assert.deepStrictEqual(repo.calls, [{ method: "status", args: [] }])
+      repo.behavior.failure = undefined
+      repo.behavior.statusEffect = async () => {
+        repo.state.HEAD = { type: 0, name: "main", commit: SHA_A }
+      }
+      await harness.service.refreshRepositories(true)
+      assert.strictEqual(await harness.service.getHeadSha(REPO_A), SHA_A)
+      assert.strictEqual(repo.calls.length, 2)
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("rejects initial metadata from a closed and reopened repository", async () => {
+      const repo = createRepository(REPO_A)
+      repo.state.HEAD = undefined
+      const status = deferredStatus()
+      repo.behavior.statusEffect = async () => {
+        await status.promise
+        repo.state.HEAD = { type: 0, name: "main", commit: SHA_A }
+      }
+      const harness = createHarness({ repositories: [repo] })
+      const rejected = assert.rejects(
+        harness.service.getHeadSha(REPO_A),
+        /no longer open/,
+      )
+      await settleEvents()
+      harness.close(repo)
+      harness.open(createRepository(REPO_A, SHA_B))
+      status.resolve()
+      await rejected
+
+      assert.strictEqual(await harness.service.getHeadSha(REPO_A), SHA_B)
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
+    test("rejects pending metadata when Git is disabled", async () => {
+      const repo = createRepository(REPO_A)
+      repo.state.HEAD = undefined
+      const status = deferredStatus()
+      repo.behavior.statusEffect = async () => {
+        await status.promise
+        repo.state.HEAD = { type: 0, name: "main", commit: SHA_A }
+      }
+      const harness = createHarness({ repositories: [repo] })
+      const rejected = assert.rejects(
+        harness.service.getHeadSha(REPO_A),
+        /not available/,
+      )
+      await settleEvents()
+      harness.setEnabled(false)
+      status.resolve()
+      await rejected
+      assert.deepStrictEqual(harness.cliCalls, [])
+    })
+
     test("acquires a reenabled API after its enablement event returns", async () => {
       const harness = createHarness({ enabled: false })
       harness.setEnabled(true, true)
