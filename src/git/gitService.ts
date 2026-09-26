@@ -1,6 +1,13 @@
 import * as path from "node:path"
 import * as vscode from "vscode"
+import type { API, GitExtension, Repository } from "../types/vscode.git"
 import { gitExec as defaultGitExec } from "./shell"
+import {
+  getHeadBranch as apiHeadBranch,
+  mapCommit,
+  mapRemote,
+  mapRepository,
+} from "./gitApiMappers"
 import {
   parseCommits,
   parseBranches,
@@ -22,118 +29,148 @@ import type {
   GitFile,
   GitRepository,
 } from "./models"
-import { getConfig as defaultGetConfig } from "../config"
 
 type GitExecFn = typeof defaultGitExec
-type GetConfigFn = typeof defaultGetConfig
-const MAX_REPOSITORY_MARKER_RESULTS = 1000
 
-interface GitServiceWorkspaceLike {
-  workspaceFolders: readonly vscode.WorkspaceFolder[] | undefined
-  createFileSystemWatcher(
-    globPattern: vscode.GlobPattern,
-  ): vscode.FileSystemWatcher
-  findFiles(
-    include: vscode.GlobPattern,
-    exclude?: vscode.GlobPattern | null,
-    maxResults?: number,
-  ): Thenable<vscode.Uri[]>
-  onDidChangeWorkspaceFolders(
-    listener: (e: vscode.WorkspaceFoldersChangeEvent) => unknown,
-  ): vscode.Disposable
-}
-
-interface GitServiceWindowLike {
-  activeTextEditor: vscode.TextEditor | undefined
-  onDidChangeActiveTextEditor(
-    listener: (editor: vscode.TextEditor | undefined) => unknown,
-  ): vscode.Disposable
-}
-
-interface GitServiceCommandsLike {
-  executeCommand(command: string, ...rest: unknown[]): Thenable<unknown>
-}
+type GitServiceWorkspaceLike = Pick<
+  typeof vscode.workspace,
+  | "createFileSystemWatcher"
+  | "getWorkspaceFolder"
+  | "onDidChangeWorkspaceFolders"
+>
+type GitServiceWindowLike = Pick<
+  typeof vscode.window,
+  "activeTextEditor" | "onDidChangeActiveTextEditor"
+>
+type GitServiceCommandsLike = Pick<typeof vscode.commands, "executeCommand">
 
 interface GitServiceDependencies {
   gitExec?: GitExecFn
-  getConfig?: GetConfigFn
   workspace?: GitServiceWorkspaceLike
   window?: GitServiceWindowLike
   commands?: GitServiceCommandsLike
 }
 
+interface RepositoryEntry {
+  repository: Repository
+  subscription: vscode.Disposable
+  initialStatus?: Promise<void>
+}
+
 export class GitService implements vscode.Disposable {
-  private readonly gitExec: GitExecFn
-  private readonly getConfig: GetConfigFn
+  private readonly executeGit: GitExecFn
   private readonly workspace: GitServiceWorkspaceLike
   private readonly window: GitServiceWindowLike
   private readonly commands: GitServiceCommandsLike
+  private readonly disposables: vscode.Disposable[] = []
+  private readonly apiDisposables: vscode.Disposable[] = []
+  private readonly repositoryEntries = new Map<string, RepositoryEntry>()
+  private readonly linkedWorktrees = new Map<string, Set<string>>()
+  private readonly changeEmitter = new vscode.EventEmitter<void>()
+  readonly onDidChange = this.changeEmitter.event
 
-  private _disposables: vscode.Disposable[] = []
-  private _onDidChange = new vscode.EventEmitter<void>()
-  readonly onDidChange = this._onDidChange.event
-
+  private api: API | undefined
   private repositories: GitRepository[] = []
   private activeRepoPath: string | undefined
-  private initialized = false
+  private editorUri: vscode.Uri | undefined
+  private manualSelection = false
+  private initialDiscovery = true
+  private pendingEditorSelection = true
+  private disposed = false
+  private notificationPending = false
   private refreshPromise: Promise<void> | undefined
-  private pendingRefreshNotification = false
 
-  constructor(dependencies: GitServiceDependencies = {}) {
-    this.gitExec = dependencies.gitExec ?? defaultGitExec
-    this.getConfig = dependencies.getConfig ?? defaultGetConfig
+  constructor(
+    private readonly gitExtension: GitExtension,
+    dependencies: GitServiceDependencies = {},
+  ) {
+    this.executeGit = dependencies.gitExec ?? defaultGitExec
     this.workspace = dependencies.workspace ?? vscode.workspace
     this.window = dependencies.window ?? vscode.window
     this.commands = dependencies.commands ?? vscode.commands
+    this.editorUri = this.window.activeTextEditor?.document.uri
 
+    // These watchers only invalidate supplemental CLI results. Git owns discovery.
     for (const pattern of ["**/.git/**", "**/.git"]) {
       const watcher = this.workspace.createFileSystemWatcher(pattern)
-      watcher.onDidChange(() => void this.refreshRepositories(true))
-      watcher.onDidCreate(() => void this.refreshRepositories(true))
-      watcher.onDidDelete(() => void this.refreshRepositories(true))
-      this._disposables.push(watcher)
+      this.disposables.push(
+        watcher,
+        watcher.onDidChange(() => this.notifyChange()),
+        watcher.onDidCreate(() => this.notifyChange()),
+        watcher.onDidDelete(() => this.notifyChange()),
+      )
     }
-
-    this._disposables.push(
-      this.workspace.onDidChangeWorkspaceFolders(
-        () => void this.refreshRepositories(true),
-      ),
-      this.window.onDidChangeActiveTextEditor(
-        (editor) => void this.handleActiveTextEditorChange(editor),
-      ),
+    this.disposables.push(
+      this.gitExtension.onDidChangeEnablement((enabled) => {
+        if (!enabled) {
+          this.connect()
+          return
+        }
+        // Git fires enablement before it finishes constructing the public API.
+        queueMicrotask(() => {
+          if (this.disposed || !this.gitExtension.enabled) return
+          try {
+            this.connect()
+          } catch (error) {
+            void vscode.window.showErrorMessage(
+              `GitLess could not connect to Git: ${error instanceof Error ? error.message : String(error)}`,
+            )
+          }
+        })
+      }),
+      this.workspace.onDidChangeWorkspaceFolders(() => this.reconcile()),
+      this.window.onDidChangeActiveTextEditor((editor) => {
+        if (editor?.document.uri.scheme !== "file") return
+        this.editorUri = editor.document.uri
+        this.manualSelection = false
+        this.pendingEditorSelection = true
+        this.reconcile()
+      }),
     )
-
-    void this.refreshRepositories()
+    try {
+      this.connect()
+    } catch (error) {
+      this.dispose()
+      throw error
+    }
   }
 
   dispose(): void {
-    this._disposables.forEach((d) => d.dispose())
-    this._onDidChange.dispose()
+    if (this.disposed) return
+    this.disposed = true
+    this.disconnect()
+    this.disposables.forEach((disposable) => disposable.dispose())
+    this.changeEmitter.dispose()
   }
 
-  async refreshRepositories(forceNotify = false): Promise<void> {
-    this.pendingRefreshNotification =
-      this.pendingRefreshNotification || forceNotify
-
-    if (this.refreshPromise) {
-      await this.refreshPromise
-      return
+  async refreshRepositories(_forceNotify = false): Promise<void> {
+    const api = this.requireApi()
+    if (this.refreshPromise) return this.refreshPromise
+    const refresh = (async () => {
+      const results = await Promise.allSettled(
+        [...this.repositoryEntries.values()].map((entry) => {
+          entry.initialStatus = entry.repository.status()
+          return entry.initialStatus
+        }),
+      )
+      if (this.api === api && !this.disposed) this.reconcile()
+      const failure = results.find((result) => result.status === "rejected")
+      if (failure?.status === "rejected") throw failure.reason
+    })()
+    this.refreshPromise = refresh
+    try {
+      await refresh
+    } finally {
+      if (this.refreshPromise === refresh) this.refreshPromise = undefined
     }
-
-    this.refreshPromise = this.doRefreshRepositories().finally(() => {
-      this.refreshPromise = undefined
-    })
-    await this.refreshPromise
   }
 
   async getRepositories(): Promise<GitRepository[]> {
-    await this.ensureRepositories()
     return [...this.repositories]
   }
 
   async getActiveRepository(): Promise<GitRepository | undefined> {
-    await this.ensureRepositories()
-    return this.findRepositoryByPath(this.activeRepoPath)
+    return this.repositories.find((repo) => repo.path === this.activeRepoPath)
   }
 
   async getActiveRepoPath(): Promise<string | undefined> {
@@ -141,21 +178,25 @@ export class GitService implements vscode.Disposable {
   }
 
   async setActiveRepository(repoPath: string): Promise<void> {
-    await this.ensureRepositories()
-    if (!this.findRepositoryByPath(repoPath)) return
-    if (repoPath === this.activeRepoPath) return
-
+    if (!this.repositories.some((repo) => repo.path === repoPath)) return
+    // Even selecting the automatic fallback explicitly must survive late discovery.
+    this.manualSelection = true
+    this.pendingEditorSelection = false
     this.activeRepoPath = repoPath
-    await this.updateContexts()
-    this._onDidChange.fire()
+    this.notifyChange()
   }
 
   async getRepositoryForUri(
     uri: vscode.Uri,
   ): Promise<GitRepository | undefined> {
-    await this.ensureRepositories()
-    if (uri.scheme !== "file") return undefined
-    return this.findRepositoryForFsPath(uri.fsPath)
+    if (uri.scheme !== "file" || !this.api) return undefined
+    const repository = this.api.getRepository(uri)
+    if (
+      !repository ||
+      !this.repositoryEntries.has(repository.rootUri.toString())
+    )
+      return undefined
+    return this.toRepository(repository)
   }
 
   async getRepoFileContext(
@@ -163,15 +204,11 @@ export class GitService implements vscode.Disposable {
   ): Promise<{ repoPath: string; relativePath: string } | undefined> {
     const repo = await this.getRepositoryForUri(uri)
     if (!repo) return undefined
-
     const relativePath = path.relative(repo.path, uri.fsPath)
-    if (!isPathInside(repo.path, uri.fsPath) || !relativePath) {
-      return undefined
-    }
-
+    if (!isPathInside(repo.path, uri.fsPath) || !relativePath) return undefined
     return {
       repoPath: repo.path,
-      relativePath: normalizeGitPath(relativePath),
+      relativePath: relativePath.replace(/\\/g, "/"),
     }
   }
 
@@ -191,6 +228,14 @@ export class GitService implements vscode.Disposable {
       path?: string
     },
   ): Promise<GitCommit[]> {
+    const repository = this.getApiRepository(repoPath)
+    if (repository && !options?.ref) {
+      const commits = await repository.log({
+        maxEntries: options?.maxCount ?? 50,
+        ...(options?.path ? { path: options.path } : {}),
+      })
+      return commits.map(mapCommit)
+    }
     const args = [
       "log",
       `--format=${getLogFormat()}`,
@@ -232,6 +277,12 @@ export class GitService implements vscode.Disposable {
   }
 
   async getRemotes(repoPath: string): Promise<GitRemote[]> {
+    const repository = await this.getReadyApiRepository(repoPath)
+    if (repository) {
+      return repository.state.remotes
+        .map(mapRemote)
+        .filter((remote): remote is GitRemote => remote !== undefined)
+    }
     const output = await this.gitExec(["remote", "-v"], { cwd: repoPath })
     return parseRemotes(output)
   }
@@ -250,6 +301,7 @@ export class GitService implements vscode.Disposable {
     repoPath: string,
     branch: GitBranch,
   ): Promise<string[]> {
+    this.getApiRepository(repoPath)
     if (
       !branch.upstream ||
       branch.upstream.missing ||
@@ -292,10 +344,27 @@ export class GitService implements vscode.Disposable {
   }
 
   async getWorktrees(repoPath: string): Promise<GitWorktree[]> {
+    const api = this.requireApi()
+    const repository = this.getApiRepository(repoPath)
     const output = await this.gitExec(["worktree", "list", "--porcelain"], {
       cwd: repoPath,
     })
-    return parseWorktrees(output)
+    const worktrees = parseWorktrees(output)
+    if (
+      repository &&
+      this.api === api &&
+      this.repositoryEntries.has(repository.rootUri.toString())
+    ) {
+      this.linkedWorktrees.set(
+        repository.rootUri.toString(),
+        new Set(
+          worktrees.map((worktree) =>
+            vscode.Uri.file(worktree.path).toString(),
+          ),
+        ),
+      )
+    }
+    return worktrees
   }
 
   async getCommitFiles(repoPath: string, sha: string): Promise<GitFile[]> {
@@ -353,10 +422,18 @@ export class GitService implements vscode.Disposable {
   }
 
   async getHeadSha(repoPath: string): Promise<string> {
+    const repository = await this.getReadyApiRepository(repoPath)
+    if (repository) {
+      const sha = repository.state.HEAD?.commit
+      if (!sha) throw new Error("HEAD does not point to a commit")
+      return sha
+    }
     return (await this.gitExec(["rev-parse", "HEAD"], { cwd: repoPath })).trim()
   }
 
   async getHeadBranch(repoPath: string): Promise<string | undefined> {
+    const repository = await this.getReadyApiRepository(repoPath)
+    if (repository) return apiHeadBranch(repository)
     try {
       return (
         await this.gitExec(["symbolic-ref", "--short", "HEAD"], {
@@ -373,21 +450,15 @@ export class GitService implements vscode.Disposable {
   }
 
   async checkout(repoPath: string, ref: string): Promise<void> {
-    await this.gitExec(["checkout", ref], { cwd: repoPath })
+    await this.requireRepository(repoPath).checkout(ref)
   }
 
   async applyStash(repoPath: string, index: number): Promise<void> {
-    await this.gitExec(["stash", "apply", `stash@{${index}}`], {
-      cwd: repoPath,
-    })
-    this._onDidChange.fire()
+    await this.requireRepository(repoPath).applyStash(index)
   }
 
   async popStash(repoPath: string, index: number): Promise<void> {
-    await this.gitExec(["stash", "pop", `stash@{${index}}`], {
-      cwd: repoPath,
-    })
-    this._onDidChange.fire()
+    await this.requireRepository(repoPath).popStash(index)
   }
 
   async createBranchFromStash(
@@ -395,17 +466,27 @@ export class GitService implements vscode.Disposable {
     index: number,
     branchName: string,
   ): Promise<void> {
-    await this.gitExec(["stash", "branch", branchName, `stash@{${index}}`], {
-      cwd: repoPath,
-    })
-    this._onDidChange.fire()
+    const repository = this.requireRepository(repoPath)
+    const api = this.requireApi()
+    try {
+      await this.gitExec(["stash", "branch", branchName, `stash@{${index}}`], {
+        cwd: repoPath,
+      })
+    } finally {
+      // A failed stash operation may still have changed the branch or index.
+      // Status errors must not replace the operation's original error.
+      if (
+        this.api === api &&
+        this.repositoryEntries.has(repository.rootUri.toString())
+      ) {
+        await repository.status().catch(() => {})
+        if (this.api === api) this.reconcile()
+      }
+    }
   }
 
   async dropStash(repoPath: string, index: number): Promise<void> {
-    await this.gitExec(["stash", "drop", `stash@{${index}}`], {
-      cwd: repoPath,
-    })
-    this._onDidChange.fire()
+    await this.requireRepository(repoPath).dropStash(index)
   }
 
   async diff(
@@ -494,257 +575,206 @@ export class GitService implements vscode.Disposable {
     repoPath: string,
     query: string,
   ): Promise<GitCommit[]> {
+    const repository = this.getApiRepository(repoPath)
     const normalizedQuery = query.trim().toLowerCase()
     if (!/^[0-9a-f]{4,40}$/.test(normalizedQuery)) return []
 
+    if (repository) {
+      let commit
+      try {
+        commit = await repository.getCommit(`${normalizedQuery}^{commit}`)
+      } catch {
+        return []
+      }
+      return /^[0-9a-f]{40}$/.test(commit.hash) ? [mapCommit(commit)] : []
+    }
+
+    // Explicitly listed but unopened worktrees have no API repository handle.
     let resolvedSha: string
     try {
-      const output = await this.gitExec(
-        ["rev-parse", "--verify", "--quiet", `${normalizedQuery}^{commit}`],
-        { cwd: repoPath },
-      )
-      resolvedSha = output.trim()
+      resolvedSha = (
+        await this.gitExec(
+          ["rev-parse", "--verify", "--quiet", `${normalizedQuery}^{commit}`],
+          { cwd: repoPath },
+        )
+      ).trim()
     } catch {
       return []
     }
-
     if (!/^[0-9a-f]{40}$/.test(resolvedSha)) return []
-
-    const output = await this.gitExec(
-      ["show", "--no-patch", `--format=${getLogFormat()}`, resolvedSha],
-      { cwd: repoPath },
-    )
-    return parseCommits(output)
-  }
-
-  private async ensureRepositories(): Promise<void> {
-    if (this.initialized) return
-    await this.refreshRepositories()
-  }
-
-  private async doRefreshRepositories(): Promise<void> {
-    const forceNotify = this.pendingRefreshNotification
-    this.pendingRefreshNotification = false
-
-    const previousRepoPaths = this.repositories.map((repo) => repo.path)
-    const previousActiveRepoPath = this.activeRepoPath
-    const repositories = await this.discoverRepositories()
-
-    this.repositories = repositories
-    this.initialized = true
-
-    this.activeRepoPath = this.pickActiveRepositoryPath(
-      repositories,
-      previousActiveRepoPath,
-      await this.getActiveEditorRepoPath(repositories),
-    )
-
-    await this.updateContexts()
-
-    if (
-      forceNotify ||
-      previousActiveRepoPath !== this.activeRepoPath ||
-      !sameRepositoryPaths(previousRepoPaths, repositories)
-    ) {
-      this._onDidChange.fire()
-    }
-  }
-
-  private async discoverRepositories(): Promise<GitRepository[]> {
-    const workspaceFolders = this.workspace.workspaceFolders
-    if (!workspaceFolders?.length) return []
-
-    const candidates = (
-      await Promise.all(
-        workspaceFolders.map((folder) =>
-          this.discoverRepositoryCandidates(folder),
-        ),
-      )
-    ).flat()
-
-    const repositories = await Promise.all(
-      candidates.map((candidate) =>
-        this.resolveRepositoryFromFsPath(
-          candidate.fsPath,
-          candidate.workspaceFolderName,
-        ),
+    return parseCommits(
+      await this.gitExec(
+        ["show", "--no-patch", `--format=${getLogFormat()}`, resolvedSha],
+        { cwd: repoPath },
       ),
     )
-
-    const repositoriesByPath = new Map<string, GitRepository>()
-    for (const repository of repositories) {
-      if (!repository) continue
-      if (!repositoriesByPath.has(repository.path)) {
-        repositoriesByPath.set(repository.path, repository)
-      }
-    }
-
-    return [...repositoriesByPath.values()]
   }
 
-  private async discoverRepositoryCandidates(
-    folder: vscode.WorkspaceFolder,
-  ): Promise<Array<{ fsPath: string; workspaceFolderName?: string }>> {
-    const candidatePaths = new Set<string>([folder.uri.fsPath])
-
-    const markerUris = await this.findChildGitMarkers(folder)
-    for (const markerUri of markerUris) {
-      const repoPath = getRepositoryPathFromGitMarker(markerUri.fsPath)
-      if (repoPath) candidatePaths.add(repoPath)
-    }
-
-    return [...candidatePaths]
-      .sort(compareRepositoryCandidatePaths)
-      .map((fsPath) => ({ fsPath, workspaceFolderName: folder.name }))
-  }
-
-  private async findChildGitMarkers(
-    folder: vscode.WorkspaceFolder,
-  ): Promise<vscode.Uri[]> {
-    const repositoryScanMaxDepth = this.getRepositoryScanMaxDepth()
-    const markerPatterns = getGitMarkerPatterns(repositoryScanMaxDepth)
-    if (markerPatterns.length === 0) return []
-
-    try {
-      const markerUris = await Promise.all(
-        markerPatterns.map((markerPattern) =>
-          this.workspace.findFiles(
-            new vscode.RelativePattern(folder, markerPattern),
-            null,
-            MAX_REPOSITORY_MARKER_RESULTS,
-          ),
-        ),
+  private connect(): void {
+    this.disconnect()
+    if (this.disposed) return
+    this.reconcile()
+    if (this.gitExtension.enabled) {
+      const api = this.gitExtension.getAPI(1)
+      this.api = api
+      this.initialDiscovery = true
+      this.apiDisposables.push(
+        api.onDidOpenRepository((repository) => {
+          this.addRepository(repository)
+          this.reconcile()
+        }),
+        api.onDidCloseRepository((repository) => {
+          const key = repository.rootUri.toString()
+          this.repositoryEntries.get(key)?.subscription.dispose()
+          this.repositoryEntries.delete(key)
+          this.linkedWorktrees.delete(key)
+          this.reconcile()
+        }),
+        api.onDidChangeState(() => this.reconcile()),
       )
-
-      return markerUris.flat()
-    } catch {
-      return []
+      for (const repository of api.repositories) this.addRepository(repository)
     }
+    this.reconcile()
   }
 
-  private getRepositoryScanMaxDepth(): number {
-    const configured = this.getConfig<number>("repositoryScanMaxDepth")
-    if (configured === undefined || !Number.isFinite(configured)) return 1
-    return Math.trunc(configured)
+  private disconnect(): void {
+    this.apiDisposables.splice(0).forEach((disposable) => disposable.dispose())
+    for (const { subscription } of this.repositoryEntries.values())
+      subscription.dispose()
+    this.repositoryEntries.clear()
+    this.linkedWorktrees.clear()
+    this.api = undefined
+    this.refreshPromise = undefined
   }
 
-  private async resolveRepositoryFromFsPath(
-    fsPath: string,
-    workspaceFolderName?: string,
-  ): Promise<GitRepository | undefined> {
-    const cwd = normalizeCwd(fsPath)
+  private addRepository(repository: Repository): void {
+    const key = repository.rootUri.toString()
+    if (
+      repository.rootUri.scheme !== "file" ||
+      repository.isUsingVirtualFileSystem ||
+      this.repositoryEntries.has(key)
+    )
+      return
+    this.repositoryEntries.set(key, {
+      repository,
+      subscription: repository.state.onDidChange(() => this.reconcile()),
+    })
+  }
 
-    try {
-      const rootPath = (
-        await this.gitExec(["rev-parse", "--show-toplevel"], { cwd })
-      ).trim()
-      const { headSha, headBranch } = await this.getHeadInfo(rootPath)
+  private toRepository(repository: Repository): GitRepository {
+    return mapRepository(
+      repository,
+      this.workspace.getWorkspaceFolder(repository.rootUri)?.name,
+    )
+  }
 
-      return {
-        path: rootPath,
-        rootUri: vscode.Uri.file(rootPath).toString(),
-        label: path.basename(rootPath) || rootPath,
-        workspaceFolderName,
-        headSha,
-        headBranch,
-      }
-    } catch {
-      return undefined
+  private reconcile(): void {
+    if (this.disposed) return
+    this.repositories = [...this.repositoryEntries.values()].map(
+      ({ repository }) => this.toRepository(repository),
+    )
+    const currentExists = this.repositories.some(
+      (repo) => repo.path === this.activeRepoPath,
+    )
+    if (!currentExists) this.manualSelection = false
+    const editorRepository =
+      this.editorUri?.scheme === "file"
+        ? this.api?.getRepository(this.editorUri)
+        : undefined
+    const editorPath =
+      editorRepository &&
+      this.repositoryEntries.has(editorRepository.rootUri.toString())
+        ? editorRepository.rootUri.fsPath
+        : undefined
+    if (
+      (this.initialDiscovery || this.pendingEditorSelection) &&
+      !this.manualSelection &&
+      editorPath
+    ) {
+      this.activeRepoPath = editorPath
+      this.pendingEditorSelection = false
+    } else if (!currentExists) {
+      this.activeRepoPath = editorPath ?? this.repositories[0]?.path
     }
-  }
-
-  private async getHeadInfo(
-    repoPath: string,
-  ): Promise<Pick<GitRepository, "headSha" | "headBranch">> {
-    let headSha: string | undefined
-    let headBranch: string | undefined
-
-    try {
-      headSha = (
-        await this.gitExec(["rev-parse", "HEAD"], { cwd: repoPath })
-      ).trim()
-    } catch {
-      headSha = undefined
-    }
-
-    try {
-      headBranch = (
-        await this.gitExec(["symbolic-ref", "--short", "HEAD"], {
-          cwd: repoPath,
-        })
-      ).trim()
-    } catch {
-      headBranch = undefined
-    }
-
-    return { headSha, headBranch }
-  }
-
-  private async getActiveEditorRepoPath(
-    repositories: GitRepository[],
-  ): Promise<string | undefined> {
-    const editor = this.window.activeTextEditor
-    if (!editor || editor.document.uri.scheme !== "file") return undefined
-    return this.findRepositoryForFsPath(
-      editor.document.uri.fsPath,
-      repositories,
-    )?.path
-  }
-
-  private pickActiveRepositoryPath(
-    repositories: GitRepository[],
-    currentActiveRepoPath: string | undefined,
-    activeEditorRepoPath: string | undefined,
-  ): string | undefined {
-    const repositoryPaths = new Set(repositories.map((repo) => repo.path))
-
-    if (currentActiveRepoPath && repositoryPaths.has(currentActiveRepoPath)) {
-      return currentActiveRepoPath
-    }
-
-    if (activeEditorRepoPath && repositoryPaths.has(activeEditorRepoPath)) {
-      return activeEditorRepoPath
-    }
-
-    return repositories[0]?.path
-  }
-
-  private async handleActiveTextEditorChange(
-    editor: vscode.TextEditor | undefined,
-  ): Promise<void> {
-    if (!editor || editor.document.uri.scheme !== "file") return
-
-    const repository = await this.getRepositoryForUri(editor.document.uri)
-    if (!repository) return
-    if (repository.path === this.activeRepoPath) return
-
-    this.activeRepoPath = repository.path
-    await this.updateContexts()
-    this._onDidChange.fire()
-  }
-
-  private findRepositoryByPath(
-    repoPath: string | undefined,
-  ): GitRepository | undefined {
-    if (!repoPath) return undefined
-    return this.repositories.find((repo) => repo.path === repoPath)
-  }
-
-  private findRepositoryForFsPath(
-    fsPath: string,
-    repositories = this.repositories,
-  ): GitRepository | undefined {
-    return [...repositories]
-      .sort((a, b) => b.path.length - a.path.length)
-      .find((repo) => isPathInside(repo.path, fsPath))
-  }
-
-  private async updateContexts(): Promise<void> {
-    await this.commands.executeCommand(
+    if (this.api?.state === "initialized") this.initialDiscovery = false
+    void this.commands.executeCommand(
       "setContext",
       "gitless:repositories:multiple",
       this.repositories.length > 1,
     )
+    this.notifyChange()
+  }
+
+  private notifyChange(): void {
+    if (this.disposed || this.notificationPending) return
+    this.notificationPending = true
+    queueMicrotask(() => {
+      this.notificationPending = false
+      if (!this.disposed) this.changeEmitter.fire()
+    })
+  }
+
+  private requireApi(): API {
+    if (this.disposed || !this.gitExtension.enabled || !this.api) {
+      throw new Error("The built-in Git extension is not available")
+    }
+    return this.api
+  }
+
+  private getApiRepository(repoPath: string): Repository | undefined {
+    this.requireApi()
+    const key = vscode.Uri.file(repoPath).toString()
+    const repository = this.repositoryEntries.get(key)?.repository
+    if (repository) return repository
+    const knownWorktree =
+      [...this.repositoryEntries.values()].some(({ repository }) =>
+        repository.state.worktrees.some(
+          (worktree) => vscode.Uri.file(worktree.path).toString() === key,
+        ),
+      ) || [...this.linkedWorktrees.values()].some((paths) => paths.has(key))
+    if (!knownWorktree)
+      throw new Error(`Repository is not open in VS Code Git: ${repoPath}`)
+    return undefined
+  }
+
+  private requireRepository(repoPath: string): Repository {
+    const repository = this.getApiRepository(repoPath)
+    if (!repository)
+      throw new Error(
+        `Open the worktree in VS Code Git to change it: ${repoPath}`,
+      )
+    return repository
+  }
+
+  private async getReadyApiRepository(
+    repoPath: string,
+  ): Promise<Repository | undefined> {
+    const repository = this.getApiRepository(repoPath)
+    if (!repository || repository.state.HEAD !== undefined) return repository
+
+    const api = this.requireApi()
+    const key = repository.rootUri.toString()
+    const entry = this.repositoryEntries.get(key)!
+    // Git publishes repositories before their initial status finishes. Keep
+    // this promise until explicit refresh so missing HEAD cannot cause a loop.
+    entry.initialStatus ??= repository.status()
+    await entry.initialStatus
+
+    this.requireApi()
+    if (this.api !== api || this.repositoryEntries.get(key) !== entry) {
+      throw new Error(
+        `Repository is no longer open in VS Code Git: ${repoPath}`,
+      )
+    }
+    return repository
+  }
+
+  private gitExec(args: string[], options: { cwd: string }): Promise<string> {
+    this.getApiRepository(options.cwd)
+    return this.executeGit(args, {
+      ...options,
+      gitPath: this.requireApi().git.path,
+    })
   }
 }
 
@@ -765,64 +795,12 @@ function pickPreferredAutolinkRemote(
   )
 }
 
-function normalizeCwd(fsPath: string): string {
-  return fsPath
-}
-
 function isPathInside(basePath: string, candidatePath: string): boolean {
   const relativePath = path.relative(basePath, candidatePath)
   return (
     relativePath === "" ||
-    (!relativePath.startsWith("..") && !path.isAbsolute(relativePath))
+    (relativePath !== ".." &&
+      !relativePath.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relativePath))
   )
-}
-
-function normalizeGitPath(filePath: string): string {
-  return filePath.replace(/\\/g, "/")
-}
-
-function getRepositoryPathFromGitMarker(
-  markerPath: string,
-): string | undefined {
-  const markerName = path.basename(markerPath)
-  if (markerName === ".git") return path.dirname(markerPath)
-
-  const markerParent = path.dirname(markerPath)
-  if (markerName === "HEAD" && path.basename(markerParent) === ".git") {
-    return path.dirname(markerParent)
-  }
-
-  return undefined
-}
-
-function getGitMarkerPatterns(repositoryScanMaxDepth: number): string[] {
-  if (repositoryScanMaxDepth === -1) return ["**/.git", "**/.git/HEAD"]
-  if (repositoryScanMaxDepth <= 0) return []
-
-  return Array.from({ length: repositoryScanMaxDepth }, (_, index) => {
-    return Array.from({ length: index + 1 }, () => "*").join("/")
-  }).flatMap((prefix) => [`${prefix}/.git`, `${prefix}/.git/HEAD`])
-}
-
-function compareRepositoryCandidatePaths(a: string, b: string): number {
-  const depthDifference = getPathDepth(a) - getPathDepth(b)
-  if (depthDifference !== 0) return depthDifference
-
-  if (a < b) return -1
-  if (a > b) return 1
-  return 0
-}
-
-function getPathDepth(fsPath: string): number {
-  return normalizeGitPath(fsPath).split("/").filter(Boolean).length
-}
-
-function sameRepositoryPaths(
-  previousRepoPaths: string[],
-  repositories: GitRepository[],
-): boolean {
-  if (previousRepoPaths.length !== repositories.length) return false
-  return previousRepoPaths.every((repoPath, index) => {
-    return repoPath === repositories[index]?.path
-  })
 }

@@ -11,6 +11,7 @@ import { registerCommands } from "./commands"
 import { RevisionContentProvider } from "./commands/revisionContentProvider"
 import { updateShortShaLength, onConfigurationChanged } from "./config"
 import { EXTENSION_NAME } from "./constants"
+import type { GitExtension } from "./types/vscode.git"
 
 export class Container implements vscode.Disposable {
   readonly gitService: GitService
@@ -24,7 +25,7 @@ export class Container implements vscode.Disposable {
   readonly lineHistoryView: LineHistoryView
   readonly searchAndCompareView: SearchAndCompareView
 
-  constructor(_context: vscode.ExtensionContext) {
+  constructor(_context: vscode.ExtensionContext, gitExtension: GitExtension) {
     this.outputChannel = vscode.window.createOutputChannel(EXTENSION_NAME)
     this.disposables.push(this.outputChannel)
 
@@ -35,13 +36,12 @@ export class Container implements vscode.Disposable {
     this.disposables.push(
       onConfigurationChanged(() => {
         updateShortShaLength()
-        void this.gitService.refreshRepositories(true)
         this.refreshAllViews()
       }),
     )
 
     // Initialize git service
-    this.gitService = new GitService()
+    this.gitService = new GitService(gitExtension)
     this.disposables.push(this.gitService)
 
     // Register revision content provider

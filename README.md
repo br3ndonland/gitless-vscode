@@ -9,6 +9,8 @@ _Git in VSCode with less bloat._
 
 GitLess is a minimal VSCode Git extension. The built-in Git features don't do enough, but other extensions do too much. GitLess strikes a balance, providing a focused set of features for everyday Git workflows.
 
+GitLess requires VS Code 1.125.0 or later and the built-in Git extension (`vscode.git`). Keep the Git extension enabled and `git.enabled` set to `true`. GitLess uses its repositories, Git executable, and change events, with direct Git commands for features the public API does not expose.
+
 What GitLess _does not_ do:
 
 - GitLess does not collect telemetry.
@@ -121,14 +123,13 @@ GitLess generates correct URLs for:
 
 Available settings:
 
-| Setting                                      | Default      | Description                                                                     |
-| -------------------------------------------- | ------------ | ------------------------------------------------------------------------------- |
-| `gitless.shortShaLength`                     | `7`          | Length of short commit SHAs (5 - 40)                                            |
-| `gitless.repositoryScanMaxDepth`             | `1`          | Depth used when scanning workspace folders for Git repositories (`-1` no limit) |
-| `gitless.views.commits.showBranchComparison` | `true`       | Show branch comparison in Commits view                                          |
-| `gitless.defaultDateFormat`                  | `null`       | Date format (Day.js format tokens)                                              |
-| `gitless.defaultDateStyle`                   | `"relative"` | Date style: `relative` or `absolute`                                            |
-| `gitless.views.branches.layout`              | `"tree"`     | Branch view layout: `list` or `tree`                                            |
+| Setting                                      | Default      | Description                            |
+| -------------------------------------------- | ------------ | -------------------------------------- |
+| `gitless.shortShaLength`                     | `7`          | Length of short commit SHAs (5 - 40)   |
+| `gitless.views.commits.showBranchComparison` | `true`       | Show branch comparison in Commits view |
+| `gitless.defaultDateFormat`                  | `null`       | Date format (Day.js format tokens)     |
+| `gitless.defaultDateStyle`                   | `"relative"` | Date style: `relative` or `absolute`   |
+| `gitless.views.branches.layout`              | `"tree"`     | Branch view layout: `list` or `tree`   |
 
 Notes:
 
@@ -137,7 +138,8 @@ Notes:
   - `MMM D, YYYY` renders `Apr 11, 2026`.
   - `YYYY-MM-DD HH:mm` renders `2026-04-11 14:30`.
   - `null` will use the default date formatting.
-- `gitless.repositoryScanMaxDepth` controls how many levels of subdirectories GitLess traverses when scanning workspace folders for Git repositories. Equivalent to `git.repositoryScanMaxDepth`. For the best multi-repo workspace experience, set both `git.repositoryScanMaxDepth` and `gitless.repositoryScanMaxDepth` to the same number.
+- Repository discovery follows the built-in Git extension's settings, including `git.autoRepositoryDetection`, `git.repositoryScanMaxDepth`, and `git.scanRepositories`. GitLess lists the repositories opened by that extension.
+- `gitless.repositoryScanMaxDepth` is deprecated and ignored. Move its value to `git.repositoryScanMaxDepth` if needed, then remove the old setting. GitLess does not change your settings automatically.
 
 Set custom values in your VS Code `settings.json`:
 
@@ -145,7 +147,6 @@ Set custom values in your VS Code `settings.json`:
 {
   "gitless.defaultDateFormat": "YYYY-MM-DD HH:mm",
   "gitless.defaultDateStyle": "absolute",
-  "gitless.repositoryScanMaxDepth": 5,
   "git.repositoryScanMaxDepth": 5,
 }
 ```
@@ -154,6 +155,7 @@ Set custom values in your VS Code `settings.json`:
 
 ### Prerequisites
 
+- [VS Code](https://code.visualstudio.com/) 1.125.0+ with its built-in Git extension enabled
 - [Node.js](https://nodejs.org/) 24+
 - [pnpm](https://pnpm.io/) 11+
 
@@ -202,3 +204,5 @@ Publishing is fully automated with [semantic-release](https://github.com/semanti
 ## License
 
 [MIT](LICENSE)
+
+Vendored Git API declarations and their license are documented in [third-party notices](THIRD_PARTY_NOTICES.md).
