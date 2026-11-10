@@ -26,6 +26,7 @@ import { getConfig as defaultGetConfig } from "../config"
 
 type GitExecFn = typeof defaultGitExec
 type GetConfigFn = typeof defaultGetConfig
+type DiscoveredRepository = GitRepository & { commonGitDir?: string }
 const MAX_REPOSITORY_MARKER_RESULTS = 1000
 
 interface GitServiceWorkspaceLike {
@@ -70,12 +71,17 @@ export class GitService implements vscode.Disposable {
   private readonly commands: GitServiceCommandsLike
 
   private _disposables: vscode.Disposable[] = []
+  private readonly gitDirectoryWatchers = new Map<
+    string,
+    vscode.FileSystemWatcher[]
+  >()
   private _onDidChange = new vscode.EventEmitter<void>()
   readonly onDidChange = this._onDidChange.event
 
   private repositories: GitRepository[] = []
   private activeRepoPath: string | undefined
   private initialized = false
+  private disposed = false
   private refreshPromise: Promise<void> | undefined
   private pendingRefreshNotification = false
 
@@ -87,11 +93,7 @@ export class GitService implements vscode.Disposable {
     this.commands = dependencies.commands ?? vscode.commands
 
     for (const pattern of ["**/.git/**", "**/.git"]) {
-      const watcher = this.workspace.createFileSystemWatcher(pattern)
-      watcher.onDidChange(() => void this.refreshRepositories(true))
-      watcher.onDidCreate(() => void this.refreshRepositories(true))
-      watcher.onDidDelete(() => void this.refreshRepositories(true))
-      this._disposables.push(watcher)
+      this._disposables.push(this.watchGitChanges(pattern))
     }
 
     this._disposables.push(
@@ -107,11 +109,14 @@ export class GitService implements vscode.Disposable {
   }
 
   dispose(): void {
+    this.disposed = true
+    this.updateGitDirectoryWatchers([])
     this._disposables.forEach((d) => d.dispose())
     this._onDidChange.dispose()
   }
 
   async refreshRepositories(forceNotify = false): Promise<void> {
+    if (this.disposed) return
     this.pendingRefreshNotification =
       this.pendingRefreshNotification || forceNotify
 
@@ -120,9 +125,7 @@ export class GitService implements vscode.Disposable {
       return
     }
 
-    this.refreshPromise = this.doRefreshRepositories().finally(() => {
-      this.refreshPromise = undefined
-    })
+    this.refreshPromise = this.refreshUntilCurrent()
     await this.refreshPromise
   }
 
@@ -522,6 +525,16 @@ export class GitService implements vscode.Disposable {
     await this.refreshRepositories()
   }
 
+  private async refreshUntilCurrent(): Promise<void> {
+    try {
+      do {
+        await this.doRefreshRepositories()
+      } while (this.pendingRefreshNotification && !this.disposed)
+    } finally {
+      this.refreshPromise = undefined
+    }
+  }
+
   private async doRefreshRepositories(): Promise<void> {
     const forceNotify = this.pendingRefreshNotification
     this.pendingRefreshNotification = false
@@ -529,7 +542,9 @@ export class GitService implements vscode.Disposable {
     const previousRepoPaths = this.repositories.map((repo) => repo.path)
     const previousActiveRepoPath = this.activeRepoPath
     const repositories = await this.discoverRepositories()
+    if (this.disposed) return
 
+    this.updateGitDirectoryWatchers(repositories)
     this.repositories = repositories
     this.initialized = true
 
@@ -540,6 +555,7 @@ export class GitService implements vscode.Disposable {
     )
 
     await this.updateContexts()
+    if (this.disposed) return
 
     if (
       forceNotify ||
@@ -550,7 +566,58 @@ export class GitService implements vscode.Disposable {
     }
   }
 
-  private async discoverRepositories(): Promise<GitRepository[]> {
+  private watchGitChanges(
+    pattern: vscode.GlobPattern,
+  ): vscode.FileSystemWatcher {
+    const watcher = this.workspace.createFileSystemWatcher(pattern)
+    const refresh = () => void this.refreshRepositories(true)
+    watcher.onDidChange(refresh)
+    watcher.onDidCreate(refresh)
+    watcher.onDidDelete(refresh)
+    return watcher
+  }
+
+  private updateGitDirectoryWatchers(
+    repositories: DiscoveredRepository[],
+  ): void {
+    const directories = new Set(
+      repositories.flatMap(({ commonGitDir }) =>
+        commonGitDir ? [commonGitDir] : [],
+      ),
+    )
+
+    for (const [directory, watchers] of this.gitDirectoryWatchers) {
+      if (directories.has(directory)) continue
+      watchers.forEach((watcher) => watcher.dispose())
+      this.gitDirectoryWatchers.delete(directory)
+    }
+
+    for (const directory of directories) {
+      if (this.gitDirectoryWatchers.has(directory)) continue
+      // Linked worktrees keep their HEADs and shared refs outside their checkout.
+      const patterns = [
+        new vscode.RelativePattern(
+          directory,
+          "{HEAD,packed-refs,refs,worktrees,reftable}",
+        ),
+        new vscode.RelativePattern(path.join(directory, "refs"), "**/*"),
+        new vscode.RelativePattern(
+          path.join(directory, "worktrees"),
+          "{*,*/HEAD,*/gitdir,*/locked,*/reftable/tables.list}",
+        ),
+        new vscode.RelativePattern(
+          path.join(directory, "reftable"),
+          "tables.list",
+        ),
+      ]
+      this.gitDirectoryWatchers.set(
+        directory,
+        patterns.map((pattern) => this.watchGitChanges(pattern)),
+      )
+    }
+  }
+
+  private async discoverRepositories(): Promise<DiscoveredRepository[]> {
     const workspaceFolders = this.workspace.workspaceFolders
     if (!workspaceFolders?.length) return []
 
@@ -571,7 +638,7 @@ export class GitService implements vscode.Disposable {
       ),
     )
 
-    const repositoriesByPath = new Map<string, GitRepository>()
+    const repositoriesByPath = new Map<string, DiscoveredRepository>()
     for (const repository of repositories) {
       if (!repository) continue
       if (!repositoriesByPath.has(repository.path)) {
@@ -631,14 +698,21 @@ export class GitService implements vscode.Disposable {
   private async resolveRepositoryFromFsPath(
     fsPath: string,
     workspaceFolderName?: string,
-  ): Promise<GitRepository | undefined> {
+  ): Promise<DiscoveredRepository | undefined> {
     const cwd = normalizeCwd(fsPath)
 
     try {
       const rootPath = (
         await this.gitExec(["rev-parse", "--show-toplevel"], { cwd })
       ).trim()
-      const { headSha, headBranch } = await this.getHeadInfo(rootPath)
+      const [{ headSha, headBranch }, commonGitDir] = await Promise.all([
+        this.getHeadInfo(rootPath),
+        this.gitExec(["rev-parse", "--git-common-dir"], { cwd: rootPath })
+          .then((output) =>
+            path.resolve(rootPath, output.replace(/\r?\n$/, "")),
+          )
+          .catch(() => undefined),
+      ])
 
       return {
         path: rootPath,
@@ -647,6 +721,7 @@ export class GitService implements vscode.Disposable {
         workspaceFolderName,
         headSha,
         headBranch,
+        commonGitDir,
       }
     } catch {
       return undefined

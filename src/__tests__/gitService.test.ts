@@ -90,18 +90,35 @@ function createWorkspaceStub(
   const workspaceFolderListeners: Array<
     (event: vscode.WorkspaceFoldersChangeEvent) => unknown
   > = []
+  const watchers: Array<{
+    pattern: vscode.GlobPattern
+    change: vscode.EventEmitter<vscode.Uri>
+    disposed: boolean
+  }> = []
 
   return {
+    watchers,
     stub: {
       get workspaceFolders(): readonly vscode.WorkspaceFolder[] {
         return workspaceFolders
       },
-      createFileSystemWatcher(): vscode.FileSystemWatcher {
+      createFileSystemWatcher(
+        pattern: vscode.GlobPattern,
+      ): vscode.FileSystemWatcher {
+        const watcher = {
+          pattern,
+          change: new vscode.EventEmitter<vscode.Uri>(),
+          disposed: false,
+        }
+        watchers.push(watcher)
         return {
-          onDidChange: () => ({ dispose: () => {} }),
+          onDidChange: watcher.change.event,
           onDidCreate: () => ({ dispose: () => {} }),
           onDidDelete: () => ({ dispose: () => {} }),
-          dispose: () => {},
+          dispose: () => {
+            watcher.disposed = true
+            watcher.change.dispose()
+          },
         } as unknown as vscode.FileSystemWatcher
       },
       findFiles(include: vscode.GlobPattern): Promise<vscode.Uri[]> {
@@ -656,6 +673,74 @@ suite("GitService", () => {
     )
 
     service.dispose()
+  })
+
+  test("should refresh for shared ref changes that arrive during a refresh", async () => {
+    const workspace = createWorkspaceStub([REPO_A, REPO_B])
+    const commonGitDir = "/outside-workspace/main/.git"
+    const firstSha = "1".repeat(40)
+    const latestSha = "2".repeat(40)
+    let headSha = firstSha
+    let afterReadHead: (() => void) | undefined
+    const service = new GitService({
+      async gitExec(args, options) {
+        if (args.includes("--git-common-dir")) return `${commonGitDir}\n`
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          const sha = headSha
+          afterReadHead?.()
+          return sha
+        }
+        return gitExecStub(args, options)
+      },
+      workspace: workspace.stub,
+      window: createWindowStub().stub,
+      commands: createCommandsStub(),
+    })
+
+    try {
+      assert.strictEqual(
+        (await service.getActiveRepository())?.headSha,
+        firstSha,
+      )
+      const refWatchers = workspace.watchers.filter(
+        ({ pattern }) =>
+          pattern instanceof vscode.RelativePattern &&
+          pattern.baseUri.fsPath === `${commonGitDir}/refs`,
+      )
+      assert.strictEqual(refWatchers.length, 1)
+      const [watcher] = refWatchers
+      const ref = vscode.Uri.file(`${commonGitDir}/refs/heads/main`)
+      let notifiedHead: Promise<string | undefined> | undefined
+      service.onDidChange(() => {
+        notifiedHead = service
+          .getActiveRepository()
+          .then((repo) => repo?.headSha)
+      })
+
+      afterReadHead = () => {
+        afterReadHead = undefined
+        headSha = latestSha
+        watcher.change.fire(ref)
+      }
+      watcher.change.fire(ref)
+      await service.refreshRepositories()
+
+      assert.strictEqual(await notifiedHead, latestSha)
+      assert.strictEqual(
+        (await service.getActiveRepository())?.headSha,
+        latestSha,
+      )
+      assert.strictEqual(
+        workspace.watchers.filter(({ disposed }) => disposed).length,
+        0,
+      )
+
+      await workspace.setWorkspaceFolders([])
+      await service.refreshRepositories()
+      assert.ok(watcher.disposed)
+    } finally {
+      service.dispose()
+    }
   })
 
   test("should discover child repositories from a non-git workspace folder", async () => {
