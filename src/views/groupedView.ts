@@ -31,10 +31,11 @@ export class GroupedView implements vscode.Disposable {
 
   constructor(private readonly gitService: GitService) {
     // Create all sub-view providers
+    const branchesView = new BranchesView(gitService)
     this.subViews = {
       commits: new CommitsView(gitService),
-      branches: new BranchesView(gitService),
-      remotes: new RemotesView(gitService),
+      branches: branchesView,
+      remotes: new RemotesView(gitService, branchesView),
       stashes: new StashesView(gitService),
       tags: new TagsView(gitService),
       worktrees: new WorktreesView(gitService),

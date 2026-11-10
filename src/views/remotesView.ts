@@ -1,6 +1,7 @@
 import * as vscode from "vscode"
 import type { GitService } from "../git/gitService"
-import { RemoteNode, BranchNode, MessageNode } from "./nodes"
+import type { BranchesView } from "./branchesView"
+import { RemoteNode, BranchNode, CommitNode, MessageNode } from "./nodes"
 
 export class RemotesView implements vscode.TreeDataProvider<vscode.TreeItem> {
   private _onDidChangeTreeData = new vscode.EventEmitter<
@@ -8,7 +9,10 @@ export class RemotesView implements vscode.TreeDataProvider<vscode.TreeItem> {
   >()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
-  constructor(private readonly gitService: GitService) {
+  constructor(
+    private readonly gitService: GitService,
+    private readonly branchesView: BranchesView,
+  ) {
     gitService.onDidChange(() => this.refresh())
   }
 
@@ -21,6 +25,15 @@ export class RemotesView implements vscode.TreeDataProvider<vscode.TreeItem> {
   }
 
   async getChildren(element?: vscode.TreeItem): Promise<vscode.TreeItem[]> {
+    if (element instanceof BranchNode || element instanceof CommitNode) {
+      const children = await this.branchesView.getChildren(element)
+      // Remote branches can contain the same commits and changed files.
+      for (const child of children) {
+        if (child.id) child.id = `${element.id}:${child.id}`
+      }
+      return children
+    }
+
     const repoPath = await this.gitService.getActiveRepoPath()
     if (!repoPath) return [new MessageNode("No repository found")]
 
