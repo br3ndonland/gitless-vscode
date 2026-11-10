@@ -1,14 +1,18 @@
 import * as vscode from "vscode"
 import { Container } from "./container"
 import { EXTENSION_NAME } from "./constants"
+import { getGitExtension } from "./git/gitApi"
 
 let container: Container | undefined
 
-export function activate(context: vscode.ExtensionContext): void {
+export async function activate(
+  context: vscode.ExtensionContext,
+): Promise<void> {
   const start = Date.now()
 
   try {
-    container = new Container(context)
+    const gitExtension = await getGitExtension()
+    container = new Container(context, gitExtension)
     context.subscriptions.push(container)
 
     const elapsed = Date.now() - start

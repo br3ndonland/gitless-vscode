@@ -5,6 +5,7 @@ import * as vscode from "vscode"
 import { suite, suiteSetup, test } from "mocha"
 import { Commands } from "../../../src/constants"
 import { REVISION_SCHEME } from "../../../src/commands/revisionContentProvider"
+import type { GitExtension } from "../../../src/types/vscode.git"
 
 interface FixtureMetadata {
   repoPath: string
@@ -30,6 +31,19 @@ suite("GitLess Extension E2E", () => {
     assert.ok(extension, `Expected ${extensionId} to be installed`)
     await extension.activate()
     assert.equal(extension.isActive, true)
+
+    // Activation can finish before Git discovers the workspace repository.
+    const gitExtension =
+      vscode.extensions.getExtension<GitExtension>("vscode.git")
+    assert.ok(gitExtension)
+    const api = gitExtension.exports.getAPI(1)
+    await waitFor(
+      () =>
+        api.repositories.find(
+          (repository) => repository.rootUri.fsPath === fixture.repoPath,
+        ),
+      "Expected Git to discover the fixture repository",
+    )
   })
 
   test("registers the extension and expected commands", async () => {

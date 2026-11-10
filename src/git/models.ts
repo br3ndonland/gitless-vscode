@@ -4,7 +4,7 @@ export interface GitCommit {
   message: string
   summary: string // first line of message
   author: GitAuthor
-  committer: GitAuthor
+  committer?: GitAuthor
   date: Date
   parents: string[]
 }

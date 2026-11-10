@@ -667,10 +667,14 @@ export function registerCommands(ctx: CommandContext): vscode.Disposable[] {
     }
   })
 
-  register(Commands.RefreshView, () => {
-    vscode.commands.executeCommand(
-      "workbench.actions.treeView.gitless.views.commits.refresh",
-    )
+  register(Commands.RefreshView, async () => {
+    try {
+      await gitService.refreshRepositories(true)
+    } catch (err) {
+      vscode.window.showErrorMessage(
+        `Failed to refresh repositories: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
   })
 
   // ── Share/Link Commands ──
