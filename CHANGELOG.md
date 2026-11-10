@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/br3ndonland/gitless-vscode/compare/0.6.0...0.6.1) (2026-11-10)
+
+### Bug Fixes
+
+- refresh linked worktree commits ([8aec341](https://github.com/br3ndonland/gitless-vscode/commit/8aec341bda478dec4cea21220607f4aa94ad170b))
+- show commits under remote branches ([966e414](https://github.com/br3ndonland/gitless-vscode/commit/966e414c2d5d80d0d659891edcb8c11336aa5141))
+
 # [0.6.0](https://github.com/br3ndonland/gitless-vscode/compare/0.5.2...0.6.0) (2026-07-31)
 
 ### Features
