@@ -155,7 +155,7 @@ Set custom values in your VS Code `settings.json`:
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) 24+
-- [pnpm](https://pnpm.io/) 11+
+- [pnpm](https://pnpm.io/) with version specified by `packageManager` in `package.json`
 
 ### Setup
 
